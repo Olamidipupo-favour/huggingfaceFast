@@ -1,6 +1,5 @@
 import copy
 import hashlib
-import logging
 import os
 import re
 import torch
@@ -15,7 +14,7 @@ from PIL import Image
 import gradio as gr
 from gradio import processing_utils
 from gradio_client.client import DEFAULT_TEMP_DIR
-from transformers import AutoProcessor, AutoModelForCausalLM, TextIteratorStreamer
+from transformers import AutoProcessor, AutoModelForCausalLM, TextIteratorStreamer, logging
 
 from utils import create_model_inputs
 
@@ -27,18 +26,16 @@ MODELS = {
         trust_remote_code=True,
         torch_dtype=torch.bfloat16,
         token=os.environ["HF_AUTH_TOKEN"],
-        # revision="365283baaef60c2b1131fffdee13a0da909728c8",
+        revision="1e05755c1c5cb2077a0f60b83ea1368c22a17282",
     ).to(DEVICE),
     "HuggingFaceM4/idefics2": AutoModelForCausalLM.from_pretrained(
         "HuggingFaceM4/idefics2",
         trust_remote_code=True,
         torch_dtype=torch.bfloat16,
         token=os.environ["HF_AUTH_TOKEN"],
-        # revision="365283baaef60c2b1131fffdee13a0da909728c8",
+        revision="5cd3c3a3eb5e0ea664f5ac09e73c9ef42da93a86",
     ).to(DEVICE),
 }
-
-
 PROCESSOR = AutoProcessor.from_pretrained(
     "HuggingFaceM4/idefics2",
     token=os.environ["HF_AUTH_TOKEN"],
@@ -75,23 +72,9 @@ SYSTEM_PROMPT = [
 #     """\nAssistant: There is no dogs in this image. The picture shows a tennis player jumping to volley the ball.<end_of_utterance>""",
 ]
 
-BAN_TOKENS = (  # For documentation puporse. We are not using this list, it is hardcoded inside `idefics_causal_lm.py` inside TGI.
-    "<image>;<fake_token_around_image>"
-)
-STOP_SUSPECT_LIST = []
-
 API_TOKEN = os.getenv("HF_AUTH_TOKEN")
 # IDEFICS_LOGO = "https://huggingface.co/spaces/HuggingFaceM4/idefics_playground/resolve/main/IDEFICS_logo.png"
-
-PROCESSOR = AutoProcessor.from_pretrained(
-    "HuggingFaceM4/idefics-9b-instruct",
-    token=API_TOKEN,
-)
-
 BOT_AVATAR = "IDEFICS_logo.png"
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger()
 
 
 # Monkey patch adapted from gradio.components.image.Image - mostly to make the `save` step optional in `pil_to_temp_file`
@@ -246,6 +229,25 @@ def prompt_list_to_markdown(prompt_list: List[str]) -> str:
         else:
             resulting_string += elem
     return resulting_string
+
+
+def prompt_list_to_model_input(prompt_list: List[str]) -> Tuple[str, List[Image.Image]]:
+    """
+    Create the final input string and image list to feed to the model's processor.
+    """
+    images = []
+    for idx, part in enumerate(prompt_list):
+        if is_image(part):
+            if is_url(part):
+                images.append(fetch_images([part])[0])
+            else:
+                images.append(Image.open(part))
+            prompt_list[idx] = f"{FAKE_TOK_AROUND_IMAGE}{'<image>' * IMAGE_SEQ_LEN}{FAKE_TOK_AROUND_IMAGE}"
+    input_text = "".join(prompt_list)
+    input_text = input_text.replace(FAKE_TOK_AROUND_IMAGE * 2, FAKE_TOK_AROUND_IMAGE)
+    input_text = BOS_TOKEN + input_text.strip()
+    return input_text, images
+
 
 def remove_spaces_around_token(text: str) -> str:
     pattern = r"\s*(<fake_token_around_image>)\s*"
@@ -482,17 +484,7 @@ with gr.Blocks(title="IDEFICS Playground", theme=gr.themes.Base()) as demo:
             )
 
         # Creating model inputs
-        images = []
-        for idx, part in enumerate(formated_prompt_list):
-            if is_image(part):
-                if is_url(part):
-                    images.append(fetch_images([part])[0])
-                else:
-                    images.append(Image.open(part))
-                formated_prompt_list[idx] = f"{FAKE_TOK_AROUND_IMAGE}{'<image>' * IMAGE_SEQ_LEN}{FAKE_TOK_AROUND_IMAGE}"
-        input_text = "".join(formated_prompt_list)
-        input_text = input_text.replace(FAKE_TOK_AROUND_IMAGE * 2, FAKE_TOK_AROUND_IMAGE)
-        input_text = BOS_TOKEN + input_text
+        input_text, images = prompt_list_to_model_input(formated_prompt_list)
         inputs = create_model_inputs([input_text], [images])
         inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
         generation_args.update(inputs)
@@ -558,17 +550,7 @@ with gr.Blocks(title="IDEFICS Playground", theme=gr.themes.Base()) as demo:
             )
 
         # Creating model inputs
-        images = []
-        for idx, part in enumerate(formated_prompt_list):
-            if is_image(part):
-                if is_url(part):
-                    images.append(fetch_images([part])[0])
-                else:
-                    images.append(Image.open(part))
-                formated_prompt_list[idx] = f"{FAKE_TOK_AROUND_IMAGE}{'<image>' * IMAGE_SEQ_LEN}{FAKE_TOK_AROUND_IMAGE}"
-        input_text = "".join(formated_prompt_list)
-        input_text = input_text.replace(FAKE_TOK_AROUND_IMAGE * 2, FAKE_TOK_AROUND_IMAGE)
-        input_text = BOS_TOKEN + input_text
+        input_text, images = prompt_list_to_model_input(formated_prompt_list)
         inputs = create_model_inputs([input_text], [images])
         inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
         generation_args.update(inputs)
@@ -653,85 +635,85 @@ with gr.Blocks(title="IDEFICS Playground", theme=gr.themes.Base()) as demo:
     textbox.submit(lambda : gr.update(label='📁 Upload image', interactive=True), [], upload_btn)
     clear_btn.click(lambda : gr.update(label='📁 Upload image', interactive=True), [], upload_btn)
 
-    examples_path = os.path.dirname(__file__)
-    gr.Examples(
-        examples=[
-            [
-                (
-                    "Which famous person does the person in the image look like? Could you craft an engaging narrative"
-                    " featuring this character from the image as the main protagonist?"
-                ),
-                f"{examples_path}/example_images/obama-harry-potter.jpg",
-            ],
-            [
-                "Can you describe the image? Do you think it's real?",
-                f"{examples_path}/example_images/rabbit_force.png",
-            ],
-            ["Explain this meme to me.", f"{examples_path}/example_images/meme_french.jpg"],
-            ["Give me a short and easy recipe for this dish.", f"{examples_path}/example_images/recipe_burger.webp"],
-            [
-                "I want to go somewhere similar to the one in the photo. Give me destinations and travel tips.",
-                f"{examples_path}/example_images/travel_tips.jpg",
-            ],
-            [
-                "Can you name the characters in the image and give their French names?",
-                f"{examples_path}/example_images/gaulois.png",
-            ],
-            ["Write a complete sales ad for this product.", f"{examples_path}/example_images/product_ad.jpg"],
-            # [
-            #     (
-            #         "As an art critic AI assistant, could you describe this painting in details and make a thorough"
-            #         " critic?"
-            #     ),
-            #     f"{examples_path}/example_images/art_critic.png",
-            # ],
-            # [
-            #     "Can you tell me a very short story based on this image?",
-            #     f"{examples_path}/example_images/chicken_on_money.png",
-            # ],
-            # ["Write 3 funny meme texts about this image.", f"{examples_path}/example_images/elon_smoking.jpg"],
-            # [
-            #     "Who is in this picture? Why do people find it surprising?",
-            #     f"{examples_path}/example_images/pope_doudoune.webp",
-            # ],
-            # ["What are the armed baguettes guarding?", f"{examples_path}/example_images/baguettes_guarding_paris.png"],
-            # ["What is this animal and why is it unusual?", f"{examples_path}/example_images/blue_dog.png"],
-            # [
-            #     "What is this object and do you think it is horrifying?",
-            #     f"{examples_path}/example_images/can_horror.png",
-            # ],
-            # [
-            #     (
-            #         "What is this sketch for? How would you make an argument to prove this sketch was made by Picasso"
-            #         " himself?"
-            #     ),
-            #     f"{examples_path}/example_images/cat_sketch.png",
-            # ],
-            # ["Which celebrity does this claymation figure look like?", f"{examples_path}/example_images/kanye.jpg"],
-            # ["What can you tell me about the cap in this image?", f"{examples_path}/example_images/ironman_cap.png"],
-            # [
-            #     "Can you write an advertisement for Coca-Cola based on this image?",
-            #     f"{examples_path}/example_images/polar_bear_coke.png",
-            # ],
-            # [
-            #     "What is happening in this image? Which famous personality does this person in center looks like?",
-            #     f"{examples_path}/example_images/gandhi_selfie.jpg",
-            # ],
-            # [
-            #     "What do you think the dog is doing and is it unusual?",
-            #     f"{examples_path}/example_images/surfing_dog.jpg",
-            # ],
-        ],
-        inputs=[textbox, imagebox],
-        outputs=[textbox, imagebox, chatbot],
-        fn=process_example,
-        cache_examples=True,
-        examples_per_page=6,
-        label=(
-            "Click on any example below to get started.\nFor convenience, the model generations have been"
-            " pre-computed with `idefics-80b-instruct`."
-        ),
-    )
+    # examples_path = os.path.dirname(__file__)
+    # gr.Examples(
+    #     examples=[
+    #         [
+    #             (
+    #                 "Which famous person does the person in the image look like? Could you craft an engaging narrative"
+    #                 " featuring this character from the image as the main protagonist?"
+    #             ),
+    #             f"{examples_path}/example_images/obama-harry-potter.jpg",
+    #         ],
+    #         [
+    #             "Can you describe the image? Do you think it's real?",
+    #             f"{examples_path}/example_images/rabbit_force.png",
+    #         ],
+    #         ["Explain this meme to me.", f"{examples_path}/example_images/meme_french.jpg"],
+    #         ["Give me a short and easy recipe for this dish.", f"{examples_path}/example_images/recipe_burger.webp"],
+    #         [
+    #             "I want to go somewhere similar to the one in the photo. Give me destinations and travel tips.",
+    #             f"{examples_path}/example_images/travel_tips.jpg",
+    #         ],
+    #         [
+    #             "Can you name the characters in the image and give their French names?",
+    #             f"{examples_path}/example_images/gaulois.png",
+    #         ],
+    #         ["Write a complete sales ad for this product.", f"{examples_path}/example_images/product_ad.jpg"],
+    #         [
+    #             (
+    #                 "As an art critic AI assistant, could you describe this painting in details and make a thorough"
+    #                 " critic?"
+    #             ),
+    #             f"{examples_path}/example_images/art_critic.png",
+    #         ],
+    #         [
+    #             "Can you tell me a very short story based on this image?",
+    #             f"{examples_path}/example_images/chicken_on_money.png",
+    #         ],
+    #         ["Write 3 funny meme texts about this image.", f"{examples_path}/example_images/elon_smoking.jpg"],
+    #         [
+    #             "Who is in this picture? Why do people find it surprising?",
+    #             f"{examples_path}/example_images/pope_doudoune.webp",
+    #         ],
+    #         ["What are the armed baguettes guarding?", f"{examples_path}/example_images/baguettes_guarding_paris.png"],
+    #         ["What is this animal and why is it unusual?", f"{examples_path}/example_images/blue_dog.png"],
+    #         [
+    #             "What is this object and do you think it is horrifying?",
+    #             f"{examples_path}/example_images/can_horror.png",
+    #         ],
+    #         [
+    #             (
+    #                 "What is this sketch for? How would you make an argument to prove this sketch was made by Picasso"
+    #                 " himself?"
+    #             ),
+    #             f"{examples_path}/example_images/cat_sketch.png",
+    #         ],
+    #         ["Which celebrity does this claymation figure look like?", f"{examples_path}/example_images/kanye.jpg"],
+    #         ["What can you tell me about the cap in this image?", f"{examples_path}/example_images/ironman_cap.png"],
+    #         [
+    #             "Can you write an advertisement for Coca-Cola based on this image?",
+    #             f"{examples_path}/example_images/polar_bear_coke.png",
+    #         ],
+    #         [
+    #             "What is happening in this image? Which famous personality does this person in center looks like?",
+    #             f"{examples_path}/example_images/gandhi_selfie.jpg",
+    #         ],
+    #         [
+    #             "What do you think the dog is doing and is it unusual?",
+    #             f"{examples_path}/example_images/surfing_dog.jpg",
+    #         ],
+    #     ],
+    #     inputs=[textbox, imagebox],
+    #     outputs=[textbox, imagebox, chatbot],
+    #     fn=process_example,
+    #     cache_examples=False,
+    #     examples_per_page=6,
+    #     label=(
+    #         "Click on any example below to get started.\nFor convenience, the model generations have been"
+    #         " pre-computed with `idefics-80b-instruct`."
+    #     ),
+    # )
 
 demo.queue(max_size=40)
 demo.launch()
