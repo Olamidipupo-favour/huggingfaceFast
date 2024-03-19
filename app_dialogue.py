@@ -2,6 +2,7 @@ import copy
 import hashlib
 import os
 import re
+import spaces
 import subprocess
 import torch
 import PIL
@@ -427,6 +428,7 @@ with gr.Blocks(title="IDEFICS Playground", theme=gr.themes.Base()) as demo:
                 outputs=top_p,
             )
 
+    @spaces.GPU(duration=180)
     def model_inference(
         model_selector,
         user_prompt_str,
