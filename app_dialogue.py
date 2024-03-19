@@ -2,6 +2,7 @@ import copy
 import hashlib
 import os
 import re
+import subprocess
 import torch
 import PIL
 
@@ -18,6 +19,8 @@ from transformers import AutoProcessor, AutoModelForCausalLM, TextIteratorStream
 
 from utils import create_model_inputs
 
+
+subprocess.run('pip install flash-attn --no-build-isolation', env={'FLASH_ATTENTION_SKIP_CUDA_BUILD': "TRUE"}, shell=True)
 
 DEVICE = torch.device("cuda")
 MODELS = {
