@@ -25,13 +25,13 @@ subprocess.run('pip install flash-attn --no-build-isolation', env={'FLASH_ATTENT
 
 DEVICE = torch.device("cuda")
 MODELS = {
-    "284 - neftune - opt 18'500": AutoModelForCausalLM.from_pretrained(
-        "HuggingFaceM4/idefics2",
-        trust_remote_code=True,
-        torch_dtype=torch.bfloat16,
-        token=os.environ["HF_AUTH_TOKEN"],
-        revision="1e05755c1c5cb2077a0f60b83ea1368c22a17282",
-    ).to(DEVICE),
+    # "284 - neftune - opt 18'500": AutoModelForCausalLM.from_pretrained(
+    #     "HuggingFaceM4/idefics2",
+    #     trust_remote_code=True,
+    #     torch_dtype=torch.bfloat16,
+    #     token=os.environ["HF_AUTH_TOKEN"],
+    #     revision="1e05755c1c5cb2077a0f60b83ea1368c22a17282",
+    # ).to(DEVICE),
     "279bis - baseline - opt 18'500": AutoModelForCausalLM.from_pretrained(
         "HuggingFaceM4/idefics2",
         trust_remote_code=True,
@@ -61,7 +61,7 @@ PROCESSOR = AutoProcessor.from_pretrained(
 FAKE_TOK_AROUND_IMAGE = "<fake_token_around_image>"
 BOS_TOKEN = PROCESSOR.tokenizer.bos_token
 BAD_WORDS_IDS = PROCESSOR.tokenizer(["<image>", "<fake_token_around_image>"], add_special_tokens=False).input_ids
-EOS_WORDS_IDS = PROCESSOR.tokenizer(["<end_of_utterance>", "\nUser:"], add_special_tokens=False).input_ids
+EOS_WORDS_IDS = PROCESSOR.tokenizer("<end_of_utterance>", add_special_tokens=False).input_ids + [PROCESSOR.tokenizer.eos_token_id]
 IMAGE_SEQ_LEN = list(MODELS.values())[0].config.perceiver_config.resampler_n_latents
 
 SYSTEM_PROMPT = [
@@ -474,6 +474,7 @@ with gr.Blocks(title="IDEFICS Playground", theme=gr.themes.Base()) as demo:
             "max_new_tokens": max_new_tokens,
             "repetition_penalty": repetition_penalty,
             "bad_words_ids": BAD_WORDS_IDS,
+            "eos_token_id": EOS_WORDS_IDS,
             "streamer": streamer,
         }
 
@@ -551,6 +552,7 @@ with gr.Blocks(title="IDEFICS Playground", theme=gr.themes.Base()) as demo:
             "max_new_tokens": max_new_tokens,
             "repetition_penalty": None,
             "bad_words_ids": BAD_WORDS_IDS,
+            "eos_token_id": EOS_WORDS_IDS,
             "do_sample": False,
         }
 
