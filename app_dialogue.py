@@ -46,6 +46,13 @@ MODELS = {
         token=os.environ["HF_AUTH_TOKEN"],
         revision="b473d49caa964991b40b79fe7cb27d51d4d023f6",
     ).to(DEVICE),
+    "285 - continued pretraining on text sft - opt 2'000": AutoModelForCausalLM.from_pretrained(
+        "HuggingFaceM4/idefics2",
+        trust_remote_code=True,
+        torch_dtype=torch.bfloat16,
+        token=os.environ["HF_AUTH_TOKEN"],
+        revision="b0a2a564e5dc311591886bb375e8d5a1aeaade83",
+    ).to(DEVICE),
 }
 PROCESSOR = AutoProcessor.from_pretrained(
     "HuggingFaceM4/idefics2",
