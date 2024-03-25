@@ -366,7 +366,15 @@ top_p = gr.Slider(
     info="Higher values is equivalent to sampling more low-probability tokens.",
 )
 
+
+chatbot = gr.Chatbot(
+    label="IDEFICS2",
+    avatar_images=[None, BOT_AVATAR],
+)
+
+
 with gr.Blocks(fill_height=True) as demo:
+    # model selector should be set to `visbile=False` ultimately
     with gr.Row(elem_id="model_selector_row"):
         model_selector = gr.Dropdown(
             choices=MODELS.keys(),
@@ -395,8 +403,9 @@ with gr.Blocks(fill_height=True) as demo:
 
     gr.ChatInterface(
         fn=model_inference,
+        chatbot=chatbot,
         # examples=[{"text": "hello"}, {"text": "hola"}, {"text": "merhaba"}],
-        title="Echo Bot",
+        title="Idefics2 Playground",
         multimodal=True,
         additional_inputs=[model_selector, decoding_strategy, temperature, max_new_tokens, repetition_penalty, top_p],
     )
