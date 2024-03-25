@@ -1,25 +1,19 @@
 import copy
-import hashlib
 import os
-import re
 import spaces
 import subprocess
 import torch
-import PIL
 
-from pathlib import Path
 from threading import Thread
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 from urllib.parse import urlparse
 from PIL import Image
 
 import gradio as gr
-from gradio import processing_utils
 from gradio_client.client import DEFAULT_TEMP_DIR
-from transformers import AutoProcessor, AutoModelForCausalLM, TextIteratorStreamer, logging
-
-from utils import create_model_inputs
-
+from transformers import AutoProcessor, AutoModelForCausalLM, TextIteratorStreamer
+from transformers.image_utils import to_numpy_array, PILImageResampling, ChannelDimension
+from transformers.image_transforms import resize, to_channel_dimension_format
 
 subprocess.run('pip install flash-attn --no-build-isolation', env={'FLASH_ATTENTION_SKIP_CUDA_BUILD': "TRUE"}, shell=True)
 
@@ -55,7 +49,7 @@ FAKE_TOK_AROUND_IMAGE = "<fake_token_around_image>"
 BOS_TOKEN = PROCESSOR.tokenizer.bos_token
 BAD_WORDS_IDS = PROCESSOR.tokenizer(["<image>", "<fake_token_around_image>"], add_special_tokens=False).input_ids
 EOS_WORDS_IDS = PROCESSOR.tokenizer("<end_of_utterance>", add_special_tokens=False).input_ids + [PROCESSOR.tokenizer.eos_token_id]
-IMAGE_SEQ_LEN = list(MODELS.values())[0].config.perceiver_config.resampler_n_latents
+IMAGE_SEQ_LEN = 64#list(MODELS.values())[0].config.perceiver_config.resampler_n_latents
 
 SYSTEM_PROMPT = [
 #     """The following is a conversation between a highly knowledgeable and intelligent visual AI assistant, called Assistant, and a human user, called User. In the following interactions, User and Assistant will converse in natural language, and Assistant will do its best to answer User’s questions. Assistant has the ability to perceive images and reason about the content of visual inputs. Assistant was built to be respectful, polite and inclusive. It knows a lot, and always tells the truth. When prompted with an image, it does not make up facts.
@@ -88,52 +82,87 @@ API_TOKEN = os.getenv("HF_AUTH_TOKEN")
 BOT_AVATAR = "IDEFICS_logo.png"
 
 
-# Monkey patch adapted from gradio.components.image.Image - mostly to make the `save` step optional in `pil_to_temp_file`
-def hash_bytes(bytes: bytes):
-    sha1 = hashlib.sha1()
-    sha1.update(bytes)
-    return sha1.hexdigest()
+# Model processing utils - these will be handled in the model processor directly ultimately
+def convert_to_rgb(image):
+    # `image.convert("RGB")` would only work for .jpg images, as it creates a wrong background
+    # for transparent images. The call to `alpha_composite` handles this case
+    if image.mode == "RGB":
+        return image
+
+    image_rgba = image.convert("RGBA")
+    background = Image.new("RGBA", image_rgba.size, (255, 255, 255))
+    alpha_composite = Image.alpha_composite(background, image_rgba)
+    alpha_composite = alpha_composite.convert("RGB")
+    return alpha_composite
 
 
-def pil_to_temp_file(img: PIL.Image.Image, dir: str = DEFAULT_TEMP_DIR, format: str = "png") -> str:
-    """Save a PIL image into a temp file"""
-    bytes_data = processing_utils.encode_pil_to_bytes(img, format)
-    temp_dir = Path(dir) / hash_bytes(bytes_data)
-    temp_dir.mkdir(exist_ok=True, parents=True)
-    filename = str(temp_dir / f"image.{format}")
-    if not os.path.exists(filename):
-        img.save(filename, pnginfo=processing_utils.get_pil_metadata(img))
-    return filename
+def custom_transform(x):
+    x = convert_to_rgb(x)
+    x = to_numpy_array(x)
+
+    height, width = x.shape[:2]
+    aspect_ratio = width / height
+    if width >= height and width > 980:
+        width = 980
+        height = int(width / aspect_ratio)
+    elif height > width and height > 980:
+        height = 980
+        width = int(height * aspect_ratio)
+    width = max(width, 378)
+    height = max(height, 378)
+
+    x = resize(x, (height, width), resample=PILImageResampling.BILINEAR)
+    x = PROCESSOR.image_processor.rescale(x, scale=1 / 255)
+    x = PROCESSOR.image_processor.normalize(
+        x,
+        mean=PROCESSOR.image_processor.image_mean,
+        std=PROCESSOR.image_processor.image_std
+    )
+    x = to_channel_dimension_format(x, ChannelDimension.FIRST)
+    x = torch.tensor(x)
+    return x
 
 
-def add_file(file):
-    return file.name, gr.update(label='🖼️ Uploaded!')
-
-
-# Utils to handle the image markdown display logic
-def split_str_on_im_markdown(string: str) -> List[str]:
+def create_model_inputs(
+        input_texts: List[str],
+        image_lists: List[List[Image.Image]],
+    ):
     """
-    Extract from a string (typically the user prompt string) the potential images from markdown
-    Examples:
-    - `User:![](/file=/my_temp/chicken_on_money.png)Describe this image.` would become `["User:", "/my_temp/chicken_on_money.png", "Describe this image."]`
+    All this logic will eventually be handled inside the model processor.
     """
-    IMAGES_PATTERN = re.compile(r"!\[[^\]]*\]\((.*?)\s*(\"(?:.*[^\"])\")?\s*\)")
-    parts = []
-    cursor = 0
-    for pattern in IMAGES_PATTERN.finditer(string):
-        start = pattern.start()
-        if start != cursor:
-            parts.append(string[cursor:start])
-        image_url = pattern.group(1)
-        if image_url.startswith("/file="):
-            image_url = image_url[6:]  # Remove the 'file=' prefix
-        parts.append(image_url)
-        cursor = pattern.end()
-    if cursor != len(string):
-        parts.append(string[cursor:])
-    return parts
+    inputs = PROCESSOR.tokenizer(
+        input_texts,
+        return_tensors="pt",
+        add_special_tokens=False,
+        padding=True,
+    )
+
+    output_images = [
+        [PROCESSOR.image_processor(img, transform=custom_transform) for img in im_list]
+        for im_list in image_lists
+    ]
+    total_batch_size = len(output_images)
+    max_num_images = max([len(img_l) for img_l in output_images])
+    if max_num_images > 0:
+        max_height = max([i.size(2) for img_l in output_images for i in img_l])
+        max_width = max([i.size(3) for img_l in output_images for i in img_l])
+        padded_image_tensor = torch.zeros(total_batch_size, max_num_images, 3, max_height, max_width)
+        padded_pixel_attention_masks = torch.zeros(
+            total_batch_size, max_num_images, max_height, max_width, dtype=torch.bool
+        )
+        for batch_idx, img_l in enumerate(output_images):
+            for img_idx, img in enumerate(img_l):
+                im_height, im_width = img.size()[2:]
+                padded_image_tensor[batch_idx, img_idx, :, :im_height, :im_width] = img
+                padded_pixel_attention_masks[batch_idx, img_idx, :im_height, :im_width] = True
+
+        inputs["pixel_values"] = padded_image_tensor
+        inputs["pixel_attention_mask"] = padded_pixel_attention_masks
+
+    return inputs
 
 
+# Chatbot utils
 def is_image(string: str) -> bool:
     """
     There are two ways for images: local image path or url.
@@ -152,107 +181,14 @@ def is_url(string: str) -> bool:
     return all([result.scheme, result.netloc])
 
 
-def isolate_images_urls(prompt_list: List) -> List:
-    """
-    Convert a full string prompt to the list format expected by the processor.
-    In particular, image urls (as delimited by <fake_token_around_image>) should be their own elements.
-    From:
-    ```
-    [
-        "bonjour<fake_token_around_image><image:IMG_URL><fake_token_around_image>hello",
-        PIL.Image.Image,
-        "Aurevoir",
-    ]
-    ```
-    to:
-    ```
-    [
-        "bonjour",
-        IMG_URL,
-        "hello",
-        PIL.Image.Image,
-        "Aurevoir",
-    ]
-    ```
-    """
-    linearized_list = []
-    for prompt in prompt_list:
-        # Prompt can be either a string, or a PIL image
-        if isinstance(prompt, PIL.Image.Image):
-            linearized_list.append(prompt)
-        elif isinstance(prompt, str):
-            if "<fake_token_around_image>" not in prompt:
-                linearized_list.append(prompt)
-            else:
-                prompt_splitted = prompt.split("<fake_token_around_image>")
-                for ps in prompt_splitted:
-                    if ps == "":
-                        continue
-                    if ps.startswith("<image:"):
-                        linearized_list.append(ps[7:-1])
-                    else:
-                        linearized_list.append(ps)
-        else:
-            raise TypeError(
-                f"Unrecognized type for `prompt`. Got {type(type(prompt))}. Was expecting something in [`str`,"
-                " `PIL.Image.Image`]"
-            )
-    return linearized_list
-
-
-def fetch_images(url_list: str) -> PIL.Image.Image:
-    """Fetching images"""
-    return PROCESSOR.image_processor.fetch_images(url_list)
-
-
-def handle_manual_images_in_user_prompt(user_prompt: str) -> List[str]:
-    """
-    Handle the case of textually manually inputted images (i.e. the `<fake_token_around_image><image:IMG_URL><fake_token_around_image>`) in the user prompt
-    by fetching them, saving them locally and replacing the whole sub-sequence the image local path.
-    """
-    if "<fake_token_around_image>" in user_prompt:
-        splitted_user_prompt = isolate_images_urls([user_prompt])
-        resulting_user_prompt = []
-        for u_p in splitted_user_prompt:
-            if is_url(u_p):
-                img = fetch_images([u_p])[0]
-                tmp_file = pil_to_temp_file(img)
-                resulting_user_prompt.append(tmp_file)
-            else:
-                resulting_user_prompt.append(u_p)
-        return resulting_user_prompt
-    else:
-        return [user_prompt]
-
-
-def prompt_list_to_markdown(prompt_list: List[str]) -> str:
-    """
-    Convert a user prompt in the list format (i.e. elements are either a PIL image or a string) into
-    the markdown format that is used for the chatbot history and rendering.
-    """
-    resulting_string = ""
-    for elem in prompt_list:
-        if is_image(elem):
-            if is_url(elem):
-                resulting_string += f"![]({elem})"
-            else:
-                resulting_string += f"![](/file={elem})"
-        else:
-            resulting_string += elem
-    return resulting_string
-
-
 def prompt_list_to_model_input(prompt_list: List[str]) -> Tuple[str, List[Image.Image]]:
     """
-    Create the final input string and image list to feed to the model's processor.
+    Create the final input string and image list to feed to the model.
     """
     images = []
     for idx, part in enumerate(prompt_list):
         if is_image(part):
-            if is_url(part):
-                images.append(fetch_images([part])[0])
-            else:
-                images.append(Image.open(part))
+            images.append(Image.open(part))
             prompt_list[idx] = f"{FAKE_TOK_AROUND_IMAGE}{'<image>' * IMAGE_SEQ_LEN}{FAKE_TOK_AROUND_IMAGE}"
     input_text = "".join(prompt_list)
     input_text = input_text.replace(FAKE_TOK_AROUND_IMAGE * 2, FAKE_TOK_AROUND_IMAGE)
@@ -260,85 +196,181 @@ def prompt_list_to_model_input(prompt_list: List[str]) -> Tuple[str, List[Image.
     return input_text, images
 
 
-def remove_spaces_around_token(text: str) -> str:
-    pattern = r"\s*(<fake_token_around_image>)\s*"
-    replacement = r"\1"
-    result = re.sub(pattern, replacement, text)
-    return result
+def turn_is_pure_media(turn):
+    return turn[1] is None
 
 
-# Chatbot utils
 def format_user_prompt_with_im_history_and_system_conditioning(
-    current_user_prompt_str: str, current_image: Optional[str], history: List[Tuple[str, str]]
-) -> Tuple[List[str], List[str]]:
+    user_prompt, chat_history
+) -> List[str]:
     """
     Produces the resulting list that needs to go inside the processor.
-    It handles the potential image box input, the history and the system conditionning.
+    It handles the potential image(s), the history and the system conditionning.
     """
     resulting_list = copy.deepcopy(SYSTEM_PROMPT)
 
     # Format history
-    for turn in history:
-        user_utterance, assistant_utterance = turn
-        splitted_user_utterance = split_str_on_im_markdown(user_utterance)
-
-        optional_space = ""
-        if not is_image(splitted_user_utterance[0]):
-            optional_space = " "
-        resulting_list.append(f"\nUser:{optional_space}")
-        resulting_list.extend(splitted_user_utterance)
-        resulting_list.append(f"<end_of_utterance>\nAssistant: {assistant_utterance}")
+    for turn in chat_history:
+        if turn_is_pure_media(turn):
+            media = turn[0][0]
+            if resulting_list == [] or (resulting_list != [] and resulting_list[-1].endswith("<end_of_utterance>")):
+                resulting_list.append("\nUser:")
+            resulting_list.append(media)
+        else:
+            user_utterance, assistant_utterance = turn
+            if resulting_list and is_image(resulting_list[-1]): # means that previous `turn` in `chat_history` was a pure media
+                resulting_list.append(f"{user_utterance.strip()}<end_of_utterance>\nAssistant: {assistant_utterance}<end_of_utterance>")
+            else:
+                resulting_list.append(f"\nUser: {user_utterance.strip()}<end_of_utterance>\nAssistant: {assistant_utterance}<end_of_utterance>")
 
     # Format current input
-    current_user_prompt_str = remove_spaces_around_token(current_user_prompt_str)
-    if current_image is None:
-        if "![](" in current_user_prompt_str:
-            current_user_prompt_list = split_str_on_im_markdown(current_user_prompt_str)
-        else:
-            current_user_prompt_list = handle_manual_images_in_user_prompt(current_user_prompt_str)
-
-        optional_space = ""
-        if not is_image(current_user_prompt_list[0]):
-            # Check if the first element is an image (and more precisely a path to an image)
-            optional_space = " "
-        resulting_list.append(f"\nUser:{optional_space}")
-        resulting_list.extend(current_user_prompt_list)
-        resulting_list.append("<end_of_utterance>\nAssistant:")
+    if not user_prompt["files"]:
+        resulting_list.append(f"\nUser: ")
     else:
         # Choosing to put the image first when the image is inputted through the UI, but this is an arbiratrary choice.
-        resulting_list.extend(["\nUser:", current_image, f"{current_user_prompt_str}<end_of_utterance>\nAssistant:"])
-        current_user_prompt_list = [current_user_prompt_str]
+        resulting_list.append("\nUser:")
+        resulting_list.extend([im["path"] for im in user_prompt["files"]])
+    resulting_list.append(f"{user_prompt['text']}<end_of_utterance>\nAssistant:")
 
-    return resulting_list, current_user_prompt_list
+    return resulting_list
 
 
-textbox = gr.Textbox(
-    placeholder="Upload an image and send a message",
-    show_label=False,
-    # value="Describe the battle against the fierce dragons.",
-    visible=True,
-    container=False,
-    label="Text input",
-    scale=6,
+@spaces.GPU(duration=180)
+def model_inference(
+    user_prompt,
+    chat_history,
+    model_selector,
+    decoding_strategy,
+    temperature,
+    max_new_tokens,
+    repetition_penalty,
+    top_p,
+):
+    if user_prompt["text"].strip() == "" and not user_prompt["files"]:
+        gr.Error("Please input a query and optionally image(s).")
+
+    if user_prompt["text"].strip() == "" and user_prompt["files"]:
+        gr.Error("Please input a text query along the image(s).")
+
+    for file in user_prompt["files"]:
+        if not file["mime_type"].startswith("image/"):
+            gr.Error("Idefics2 only supports images. Please input a valid image.")
+
+    formated_prompt_list = format_user_prompt_with_im_history_and_system_conditioning(
+        user_prompt=user_prompt,
+        chat_history=chat_history,
+    )
+
+    streamer = TextIteratorStreamer(
+        PROCESSOR.tokenizer,
+        skip_prompt=True,
+        timeout=5.,
+    )
+
+    # Common parameters to all decoding strategies
+    # This documentation is useful to read: https://huggingface.co/docs/transformers/main/en/generation_strategies
+    generation_args = {
+        "max_new_tokens": max_new_tokens,
+        "repetition_penalty": repetition_penalty,
+        "bad_words_ids": BAD_WORDS_IDS,
+        "eos_token_id": EOS_WORDS_IDS,
+        "streamer": streamer,
+    }
+
+    assert decoding_strategy in [
+        "Greedy",
+        "Top P Sampling",
+    ]
+    if decoding_strategy == "Greedy":
+        generation_args["do_sample"] = False
+    elif decoding_strategy == "Top P Sampling":
+        generation_args["temperature"] = temperature
+        generation_args["do_sample"] = True
+        generation_args["top_p"] = top_p
+
+
+    # Creating model inputs
+    input_text, images = prompt_list_to_model_input(formated_prompt_list)
+    inputs = create_model_inputs([input_text], [images])
+    inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
+    generation_args.update(inputs)
+
+    # # The regular non streaming generation mode
+    # _ = generation_args.pop("streamer")
+    # generated_ids = MODELS[model_selector].generate(**generation_args)
+    # generated_text = PROCESSOR.batch_decode(generated_ids, skip_special_tokens=True)[0]
+    # return generated_text
+
+    thread = Thread(
+        target=MODELS[model_selector].generate,
+        kwargs=generation_args,
+    )
+    thread.start()
+
+    print("start generating")
+    acc_text = ""
+    try:
+        for text_token in streamer:
+            acc_text += text_token
+            yield acc_text
+    except Exception as e:
+        print("error")
+        gr.Error(e)
+    print("success")
+
+
+# Hyper-parameters for generation
+max_new_tokens = gr.Slider(
+    minimum=8,
+    maximum=1024,
+    value=512,
+    step=1,
+    interactive=True,
+    label="Maximum number of new tokens to generate",
 )
-with gr.Blocks(title="IDEFICS Playground", theme=gr.themes.Base()) as demo:
-    gr.HTML("""<h1 align="center">🐶 IDEFICS Playground</h1>""")
-    # with gr.Row(variant="panel"):
-    #     with gr.Column(scale=1):
-    #         gr.Image(IDEFICS_LOGO, elem_id="banner-image", show_label=False, show_download_button=False)
-    #     with gr.Column(scale=5):
-    #         gr.HTML("""
-    #             <p>This demo showcases <strong>IDEFICS</strong>, a open-access large visual language model. Like GPT-4, the multimodal model accepts arbitrary sequences of image and text inputs and produces text outputs. IDEFICS can answer questions about images, describe visual content, create stories grounded in multiple images, etc.</p>
-    #             <p>IDEFICS (which stands for <strong>I</strong>mage-aware <strong>D</strong>ecoder <strong>E</strong>nhanced à la <strong>F</strong>lamingo with <strong>I</strong>nterleaved <strong>C</strong>ross-attention<strong>S</strong>) is an open-access reproduction of <a href="https://huggingface.co/papers/2204.14198">Flamingo</a>, a closed-source visual language model developed by Deepmind. IDEFICS was built solely on publicly available data and models. It is currently the only visual language model of this scale (80 billion parameters) that is available in open-access.</p>
-    #             <p>📚 The variants available in this demo were fine-tuned on a mixture of supervised and instruction fine-tuning datasets to make the models more suitable in conversational settings. For more details, we refer to our <a href="https://huggingface.co/blog/idefics">blog post</a>.</p>
-    #             <p>🅿️ <strong>Intended uses:</strong> This demo along with the <a href="https://huggingface.co/models?sort=trending&amp;search=HuggingFaceM4%2Fidefics">supporting models</a> are provided as research artifacts to the community. We detail misuses and out-of-scope uses <a href="https://huggingface.co/HuggingFaceM4/idefics-80b#misuse-and-out-of-scope-use">here</a>.</p>
-    #             <p>⛔️ <strong>Limitations:</strong> The model can produce factually incorrect texts, hallucinate facts (with or without an image) and will struggle with small details in images. While the model will tend to refuse answering questionable user requests, it can produce problematic outputs (including racist, stereotypical, and disrespectful texts), in particular when prompted to do so. We encourage users to read our findings from evaluating the model for potential biases in the <a href="https://huggingface.co/HuggingFaceM4/idefics-80b#bias-evaluation">model card</a>.</p>
-    #         """)
+repetition_penalty = gr.Slider(
+    minimum=0.01,
+    maximum=5.0,
+    value=1.0,
+    step=0.01,
+    interactive=True,
+    label="Repetition penalty",
+    info="1.0 is equivalent to no penalty",
+)
+decoding_strategy = gr.Radio(
+    [
+        "Greedy",
+        "Top P Sampling",
+    ],
+    value="Greedy",
+    label="Decoding strategy",
+    interactive=True,
+    info="Higher values is equivalent to sampling more low-probability tokens.",
+)
+temperature = gr.Slider(
+    minimum=0.0,
+    maximum=5.0,
+    value=0.4,
+    step=0.1,
+    interactive=True,
+    label="Sampling temperature",
+    info="Higher values will produce more diverse outputs.",
+)
+top_p = gr.Slider(
+    minimum=0.01,
+    maximum=0.99,
+    value=0.8,
+    step=0.01,
+    interactive=True,
+    label="Top P",
+    info="Higher values is equivalent to sampling more low-probability tokens.",
+)
 
+with gr.Blocks(fill_height=True) as demo:
     with gr.Row(elem_id="model_selector_row"):
         model_selector = gr.Dropdown(
             choices=MODELS.keys(),
-            value="284 - neftune - opt 18'500",
+            value=list(MODELS.keys())[0],
             interactive=True,
             show_label=False,
             container=False,
@@ -346,388 +378,27 @@ with gr.Blocks(title="IDEFICS Playground", theme=gr.themes.Base()) as demo:
             visible=True,
         )
 
-    imagebox = gr.Image(type="filepath", label="Image input", visible=False)
-
-    with gr.Row():
-        # def prefetch_images_in_history(user_prompt_str):
-        #     """
-        #     Pre-fetch the images that are passed in the chatbot default history.
-        #     """
-        #     return prompt_list_to_markdown(handle_manual_images_in_user_prompt(user_prompt_str))
-
-        chatbot = gr.Chatbot(
-            elem_id="chatbot",
-            label="IDEFICS",
-            visible=True,
-            height=750,
-            avatar_images=[None, BOT_AVATAR]
-        )
-
-    with gr.Group():
-        with gr.Row():
-                textbox.render()
-                submit_btn = gr.Button(value="▶️ Submit", visible=True)
-                clear_btn = gr.ClearButton([textbox, imagebox, chatbot], value="🧹 Clear")
-                regenerate_btn = gr.Button(value="🔄 Regenerate", visible=True)
-                upload_btn = gr.UploadButton("📁 Upload image", file_types=["image"])
-
-    with gr.Row():
-        with gr.Accordion("Advanced settings", open=False, visible=True) as parameter_row:
-            max_new_tokens = gr.Slider(
-                minimum=8,
-                maximum=1024,
-                value=512,
-                step=1,
-                interactive=True,
-                label="Maximum number of new tokens to generate",
+    decoding_strategy.change(
+        fn=lambda selection: gr.Slider(
+            visible=(
+                selection in ["contrastive_sampling", "beam_sampling", "Top P Sampling", "sampling_top_k"]
             )
-            repetition_penalty = gr.Slider(
-                minimum=0.01,
-                maximum=5.0,
-                value=1.0,
-                step=0.01,
-                interactive=True,
-                label="Repetition penalty",
-                info="1.0 is equivalent to no penalty",
-            )
-            decoding_strategy = gr.Radio(
-                [
-                    "Greedy",
-                    "Top P Sampling",
-                ],
-                value="Greedy",
-                label="Decoding strategy",
-                interactive=True,
-                info="Higher values is equivalent to sampling more low-probability tokens.",
-            )
-            temperature = gr.Slider(
-                minimum=0.0,
-                maximum=5.0,
-                value=0.4,
-                step=0.1,
-                interactive=True,
-                visible=False,
-                label="Sampling temperature",
-                info="Higher values will produce more diverse outputs.",
-            )
-            decoding_strategy.change(
-                fn=lambda selection: gr.Slider(
-                    visible=(
-                        selection in ["contrastive_sampling", "beam_sampling", "Top P Sampling", "sampling_top_k"]
-                    )
-                ),
-                inputs=decoding_strategy,
-                outputs=temperature,
-            )
-            top_p = gr.Slider(
-                minimum=0.01,
-                maximum=0.99,
-                value=0.8,
-                step=0.01,
-                interactive=True,
-                visible=False,
-                label="Top P",
-                info="Higher values is equivalent to sampling more low-probability tokens.",
-            )
-            decoding_strategy.change(
-                fn=lambda selection: gr.Slider(visible=(selection in ["Top P Sampling"])),
-                inputs=decoding_strategy,
-                outputs=top_p,
-            )
-
-    @spaces.GPU(duration=180)
-    def model_inference(
-        model_selector,
-        user_prompt_str,
-        chat_history,
-        image,
-        decoding_strategy,
-        temperature,
-        max_new_tokens,
-        repetition_penalty,
-        top_p,
-    ):
-        if user_prompt_str.strip() == "" and image is None:
-            return "", None, chat_history
-
-        formated_prompt_list, user_prompt_list = format_user_prompt_with_im_history_and_system_conditioning(
-            current_user_prompt_str=user_prompt_str.strip(),
-            current_image=image,
-            history=chat_history,
-        )
-
-        streamer = TextIteratorStreamer(
-            PROCESSOR.tokenizer,
-            skip_prompt=True,
-        )
-
-        # Common parameters to all decoding strategies
-        # This documentation is useful to read: https://huggingface.co/docs/transformers/main/en/generation_strategies
-        generation_args = {
-            "max_new_tokens": max_new_tokens,
-            "repetition_penalty": repetition_penalty,
-            "bad_words_ids": BAD_WORDS_IDS,
-            "eos_token_id": EOS_WORDS_IDS,
-            "streamer": streamer,
-        }
-
-        assert decoding_strategy in [
-            "Greedy",
-            "Top P Sampling",
-        ]
-        if decoding_strategy == "Greedy":
-            generation_args["do_sample"] = False
-        elif decoding_strategy == "Top P Sampling":
-            generation_args["temperature"] = temperature
-            generation_args["do_sample"] = True
-            generation_args["top_p"] = top_p
-
-        if image is None:
-            # Case where there is no image OR the image is passed as `<fake_token_around_image><image:IMAGE_URL><fake_token_around_image>`
-            chat_history.append([prompt_list_to_markdown(user_prompt_list), ''])
-        else:
-            # Case where the image is passed through the Image Box.
-            # Convert the image into base64 for both passing it through the chat history and
-            # displaying the image inside the same bubble as the text.
-            chat_history.append(
-                [
-                    f"{prompt_list_to_markdown([image] + user_prompt_list)}",
-                    '',
-                ]
-            )
-
-        # Creating model inputs
-        input_text, images = prompt_list_to_model_input(formated_prompt_list)
-        inputs = create_model_inputs([input_text], [images])
-        inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
-        generation_args.update(inputs)
-
-        thread = Thread(
-            target=MODELS[model_selector].generate,
-            kwargs=generation_args,
-        )
-
-        thread.start()
-        acc_text = ""
-        for idx, text_token in enumerate(streamer):
-
-            acc_text += text_token
-            last_turn = chat_history.pop(-1)
-            last_turn[-1] += acc_text
-            if last_turn[-1].endswith("\nUser"):
-                # Safeguard: sometimes (rarely), the model won't generate the token `<end_of_utterance>` and will go directly to generating `\nUser:`
-                # It will thus stop the generation on `\nUser:`. But when it exits, it will have already generated `\nUser`
-                # This post-processing ensures that we don't have an additional `\nUser` wandering around.
-                last_turn[-1] = last_turn[-1][:-5]
-            chat_history.append(last_turn)
-            yield "", None, chat_history
-            acc_text = ""
-
-    def process_example(message, image):
-        """
-        Same as `model_inference` but in greedy mode and with the 80b-instruct.
-        Specifically for pre-computing the default examples.
-        """
-        model_selector = "284 - neftune - opt 18'500"
-        user_prompt_str = message
-        chat_history = []
-        max_new_tokens = 512
-
-        formated_prompt_list, user_prompt_list = format_user_prompt_with_im_history_and_system_conditioning(
-            current_user_prompt_str=user_prompt_str.strip(),
-            current_image=image,
-            history=chat_history,
-        )
-
-        # Common parameters to all decoding strategies
-        # This documentation is useful to read: https://huggingface.co/docs/transformers/main/en/generation_strategies
-        generation_args = {
-            "max_new_tokens": max_new_tokens,
-            "repetition_penalty": None,
-            "bad_words_ids": BAD_WORDS_IDS,
-            "eos_token_id": EOS_WORDS_IDS,
-            "do_sample": False,
-        }
-
-        if image is None:
-            # Case where there is no image OR the image is passed as `<fake_token_around_image><image:IMAGE_URL><fake_token_around_image>`
-            chat_history.append([prompt_list_to_markdown(user_prompt_list), ''])
-        else:
-            # Case where the image is passed through the Image Box.
-            # Convert the image into base64 for both passing it through the chat history and
-            # displaying the image inside the same bubble as the text.
-            chat_history.append(
-                [
-                    f"{prompt_list_to_markdown([image] + user_prompt_list)}",
-                    '',
-                ]
-            )
-
-        # Creating model inputs
-        input_text, images = prompt_list_to_model_input(formated_prompt_list)
-        inputs = create_model_inputs([input_text], [images])
-        inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
-        generation_args.update(inputs)
-
-        generated_ids = MODELS[model_selector].generate(**generation_args)
-        generated_text = PROCESSOR.batch_decode(generated_ids, skip_special_tokens=True)[0]
-
-        if generated_text.endswith("\nUser"):
-            generated_text = generated_text[:-5]
-
-        last_turn = chat_history.pop(-1)
-        last_turn[-1] += generated_text
-        chat_history.append(last_turn)
-        return "", None, chat_history
-
-    textbox.submit(
-        fn=model_inference,
-        inputs=[
-            model_selector,
-            textbox,
-            chatbot,
-            imagebox,
-            decoding_strategy,
-            temperature,
-            max_new_tokens,
-            repetition_penalty,
-            top_p,
-        ],
-        outputs=[textbox, imagebox, chatbot],
+        ),
+        inputs=decoding_strategy,
+        outputs=temperature,
     )
-    submit_btn.click(
-        fn=model_inference,
-        inputs=[
-            model_selector,
-            textbox,
-            chatbot,
-            imagebox,
-            decoding_strategy,
-            temperature,
-            max_new_tokens,
-            repetition_penalty,
-            top_p,
-        ],
-        outputs=[
-            textbox,
-            imagebox,
-            chatbot,
-        ],
+    decoding_strategy.change(
+        fn=lambda selection: gr.Slider(visible=(selection in ["Top P Sampling"])),
+        inputs=decoding_strategy,
+        outputs=top_p,
     )
 
-    def remove_last_turn(chat_history):
-        if len(chat_history) == 0:
-            return gr.Update(), gr.Update()
-        last_interaction = chat_history[-1]
-        chat_history = chat_history[:-1]
-        chat_update = gr.update(value=chat_history)
-        text_update = gr.update(value=last_interaction[0])
-        return chat_update, text_update
-
-    regenerate_btn.click(fn=remove_last_turn, inputs=chatbot, outputs=[chatbot, textbox]).then(
+    gr.ChatInterface(
         fn=model_inference,
-        inputs=[
-            model_selector,
-            textbox,
-            chatbot,
-            imagebox,
-            decoding_strategy,
-            temperature,
-            max_new_tokens,
-            repetition_penalty,
-            top_p,
-        ],
-        outputs=[
-            textbox,
-            imagebox,
-            chatbot,
-        ],
+        # examples=[{"text": "hello"}, {"text": "hola"}, {"text": "merhaba"}],
+        title="Echo Bot",
+        multimodal=True,
+        additional_inputs=[model_selector, decoding_strategy, temperature, max_new_tokens, repetition_penalty, top_p],
     )
 
-    upload_btn.upload(add_file, [upload_btn], [imagebox, upload_btn], queue=False)
-    submit_btn.click(lambda : gr.update(label='📁 Upload image', interactive=True), [], upload_btn)
-    textbox.submit(lambda : gr.update(label='📁 Upload image', interactive=True), [], upload_btn)
-    clear_btn.click(lambda : gr.update(label='📁 Upload image', interactive=True), [], upload_btn)
-
-    # examples_path = os.path.dirname(__file__)
-    # gr.Examples(
-    #     examples=[
-    #         [
-    #             (
-    #                 "Which famous person does the person in the image look like? Could you craft an engaging narrative"
-    #                 " featuring this character from the image as the main protagonist?"
-    #             ),
-    #             f"{examples_path}/example_images/obama-harry-potter.jpg",
-    #         ],
-    #         [
-    #             "Can you describe the image? Do you think it's real?",
-    #             f"{examples_path}/example_images/rabbit_force.png",
-    #         ],
-    #         ["Explain this meme to me.", f"{examples_path}/example_images/meme_french.jpg"],
-    #         ["Give me a short and easy recipe for this dish.", f"{examples_path}/example_images/recipe_burger.webp"],
-    #         [
-    #             "I want to go somewhere similar to the one in the photo. Give me destinations and travel tips.",
-    #             f"{examples_path}/example_images/travel_tips.jpg",
-    #         ],
-    #         [
-    #             "Can you name the characters in the image and give their French names?",
-    #             f"{examples_path}/example_images/gaulois.png",
-    #         ],
-    #         ["Write a complete sales ad for this product.", f"{examples_path}/example_images/product_ad.jpg"],
-    #         [
-    #             (
-    #                 "As an art critic AI assistant, could you describe this painting in details and make a thorough"
-    #                 " critic?"
-    #             ),
-    #             f"{examples_path}/example_images/art_critic.png",
-    #         ],
-    #         [
-    #             "Can you tell me a very short story based on this image?",
-    #             f"{examples_path}/example_images/chicken_on_money.png",
-    #         ],
-    #         ["Write 3 funny meme texts about this image.", f"{examples_path}/example_images/elon_smoking.jpg"],
-    #         [
-    #             "Who is in this picture? Why do people find it surprising?",
-    #             f"{examples_path}/example_images/pope_doudoune.webp",
-    #         ],
-    #         ["What are the armed baguettes guarding?", f"{examples_path}/example_images/baguettes_guarding_paris.png"],
-    #         ["What is this animal and why is it unusual?", f"{examples_path}/example_images/blue_dog.png"],
-    #         [
-    #             "What is this object and do you think it is horrifying?",
-    #             f"{examples_path}/example_images/can_horror.png",
-    #         ],
-    #         [
-    #             (
-    #                 "What is this sketch for? How would you make an argument to prove this sketch was made by Picasso"
-    #                 " himself?"
-    #             ),
-    #             f"{examples_path}/example_images/cat_sketch.png",
-    #         ],
-    #         ["Which celebrity does this claymation figure look like?", f"{examples_path}/example_images/kanye.jpg"],
-    #         ["What can you tell me about the cap in this image?", f"{examples_path}/example_images/ironman_cap.png"],
-    #         [
-    #             "Can you write an advertisement for Coca-Cola based on this image?",
-    #             f"{examples_path}/example_images/polar_bear_coke.png",
-    #         ],
-    #         [
-    #             "What is happening in this image? Which famous personality does this person in center looks like?",
-    #             f"{examples_path}/example_images/gandhi_selfie.jpg",
-    #         ],
-    #         [
-    #             "What do you think the dog is doing and is it unusual?",
-    #             f"{examples_path}/example_images/surfing_dog.jpg",
-    #         ],
-    #     ],
-    #     inputs=[textbox, imagebox],
-    #     outputs=[textbox, imagebox, chatbot],
-    #     fn=process_example,
-    #     cache_examples=False,
-    #     examples_per_page=6,
-    #     label=(
-    #         "Click on any example below to get started.\nFor convenience, the model generations have been"
-    #         " pre-computed with `idefics-80b-instruct`."
-    #     ),
-    # )
-
-demo.queue(max_size=40)
 demo.launch()
