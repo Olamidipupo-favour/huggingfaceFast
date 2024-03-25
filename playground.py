@@ -1,50 +1,38 @@
 import copy
-import hashlib
 import os
-import re
-# import spaces
+import spaces
 import subprocess
 import torch
-import PIL
 
-from pathlib import Path
 from threading import Thread
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 from urllib.parse import urlparse
 from PIL import Image
 
 import gradio as gr
-from gradio import processing_utils
 from gradio_client.client import DEFAULT_TEMP_DIR
-from transformers import AutoProcessor, AutoModelForCausalLM, TextIteratorStreamer, logging
+from transformers import AutoProcessor, AutoModelForCausalLM, TextIteratorStreamer
 from transformers.image_utils import to_numpy_array, PILImageResampling, ChannelDimension
 from transformers.image_transforms import resize, to_channel_dimension_format
 
-# subprocess.run('pip install flash-attn --no-build-isolation', env={'FLASH_ATTENTION_SKIP_CUDA_BUILD': "TRUE"}, shell=True)
+subprocess.run('pip install flash-attn --no-build-isolation', env={'FLASH_ATTENTION_SKIP_CUDA_BUILD': "TRUE"}, shell=True)
 
 DEVICE = torch.device("cuda")
 MODELS = {
-    "284 - neftune - opt 18'500": AutoModelForCausalLM.from_pretrained(
+    "282 - mix1 fixed - opt 23'000": AutoModelForCausalLM.from_pretrained(
         "HuggingFaceM4/idefics2",
         trust_remote_code=True,
         torch_dtype=torch.bfloat16,
         token=os.environ["HF_AUTH_TOKEN"],
-        revision="1e05755c1c5cb2077a0f60b83ea1368c22a17282",
+        revision="a1bc6a2b0f74cde25844144f602dde2808a564d9",
     ).to(DEVICE),
-    # "279bis - baseline - opt 18'500": AutoModelForCausalLM.from_pretrained(
-    #     "HuggingFaceM4/idefics2",
-    #     trust_remote_code=True,
-    #     torch_dtype=torch.bfloat16,
-    #     token=os.environ["HF_AUTH_TOKEN"],
-    #     revision="5cd3c3a3eb5e0ea664f5ac09e73c9ef42da93a86",
-    # ).to(DEVICE),
-    # "286 - mix6 tables - opt 20'000": AutoModelForCausalLM.from_pretrained(
-    #     "HuggingFaceM4/idefics2",
-    #     trust_remote_code=True,
-    #     torch_dtype=torch.bfloat16,
-    #     token=os.environ["HF_AUTH_TOKEN"],
-    #     revision="b473d49caa964991b40b79fe7cb27d51d4d023f6",
-    # ).to(DEVICE),
+    "286 - mix6 tables - opt 20'000": AutoModelForCausalLM.from_pretrained(
+        "HuggingFaceM4/idefics2",
+        trust_remote_code=True,
+        torch_dtype=torch.bfloat16,
+        token=os.environ["HF_AUTH_TOKEN"],
+        revision="b473d49caa964991b40b79fe7cb27d51d4d023f6",
+    ).to(DEVICE),
     # "285 - continued pretraining on text sft - opt 2'000": AutoModelForCausalLM.from_pretrained(
     #     "HuggingFaceM4/idefics2",
     #     trust_remote_code=True,
@@ -247,16 +235,16 @@ def format_user_prompt_with_im_history_and_system_conditioning(
     return resulting_list
 
 
-# @spaces.GPU(duration=180)
+@spaces.GPU(duration=180)
 def model_inference(
     user_prompt,
     chat_history,
+    model_selector,
     decoding_strategy,
     temperature,
     max_new_tokens,
     repetition_penalty,
     top_p,
-    model_selector,
 ):
     if user_prompt["text"].strip() == "" and not user_prompt["files"]:
         gr.Error("Please input a query and optionally image(s).")
@@ -276,6 +264,7 @@ def model_inference(
     streamer = TextIteratorStreamer(
         PROCESSOR.tokenizer,
         skip_prompt=True,
+        timeout=5.,
     )
 
     # Common parameters to all decoding strategies
@@ -302,41 +291,86 @@ def model_inference(
 
     # Creating model inputs
     input_text, images = prompt_list_to_model_input(formated_prompt_list)
-    print(input_text)
     inputs = create_model_inputs([input_text], [images])
     inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
     generation_args.update(inputs)
 
-    print("1")
+    # # The regular non streaming generation mode
+    # _ = generation_args.pop("streamer")
+    # generated_ids = MODELS[model_selector].generate(**generation_args)
+    # generated_text = PROCESSOR.batch_decode(generated_ids, skip_special_tokens=True)[0]
+    # return generated_text
+
     thread = Thread(
         target=MODELS[model_selector].generate,
         kwargs=generation_args,
     )
-    print("2")
     thread.start()
-    acc_text = ""
+
     print("start generating")
-
-    for text_token in streamer:
-        acc_text += text_token
-        yield acc_text
-        # last_turn = chat_history.pop(-1)
-        # last_turn[-1] += acc_text
-        # if last_turn[-1].endswith("\nUser"):
-        #     # Safeguard: sometimes (rarely), the model won't generate the token `<end_of_utterance>` and will go directly to generating `\nUser:`
-        #     # It will thus stop the generation on `\nUser:`. But when it exits, it will have already generated `\nUser`
-        #     # This post-processing ensures that we don't have an additional `\nUser` wandering around.
-        #     last_turn[-1] = last_turn[-1][:-5]
-        # chat_history.append(last_turn)
-        # yield "", None, chat_history
-        # acc_text = ""
+    acc_text = ""
+    try:
+        for text_token in streamer:
+            acc_text += text_token
+            yield acc_text
+    except Exception as e:
+        print("error")
+        gr.Error(e)
+    print("success")
 
 
-with gr.Blocks() as demo:
+# Hyper-parameters for generation
+max_new_tokens = gr.Slider(
+    minimum=8,
+    maximum=1024,
+    value=512,
+    step=1,
+    interactive=True,
+    label="Maximum number of new tokens to generate",
+)
+repetition_penalty = gr.Slider(
+    minimum=0.01,
+    maximum=5.0,
+    value=1.0,
+    step=0.01,
+    interactive=True,
+    label="Repetition penalty",
+    info="1.0 is equivalent to no penalty",
+)
+decoding_strategy = gr.Radio(
+    [
+        "Greedy",
+        "Top P Sampling",
+    ],
+    value="Greedy",
+    label="Decoding strategy",
+    interactive=True,
+    info="Higher values is equivalent to sampling more low-probability tokens.",
+)
+temperature = gr.Slider(
+    minimum=0.0,
+    maximum=5.0,
+    value=0.4,
+    step=0.1,
+    interactive=True,
+    label="Sampling temperature",
+    info="Higher values will produce more diverse outputs.",
+)
+top_p = gr.Slider(
+    minimum=0.01,
+    maximum=0.99,
+    value=0.8,
+    step=0.01,
+    interactive=True,
+    label="Top P",
+    info="Higher values is equivalent to sampling more low-probability tokens.",
+)
+
+with gr.Blocks(fill_height=True) as demo:
     with gr.Row(elem_id="model_selector_row"):
         model_selector = gr.Dropdown(
             choices=MODELS.keys(),
-            value="284 - neftune - opt 18'500",
+            value=list(MODELS.keys())[0],
             interactive=True,
             show_label=False,
             container=False,
@@ -344,57 +378,6 @@ with gr.Blocks() as demo:
             visible=True,
         )
 
-    # Hyper-parameters for generation
-    max_new_tokens = gr.Slider(
-        minimum=8,
-        maximum=1024,
-        value=512,
-        step=1,
-        interactive=True,
-        label="Maximum number of new tokens to generate",
-        visible=False,
-    )
-    repetition_penalty = gr.Slider(
-        minimum=0.01,
-        maximum=5.0,
-        value=1.0,
-        step=0.01,
-        interactive=True,
-        label="Repetition penalty",
-        info="1.0 is equivalent to no penalty",
-        visible=False,
-    )
-    decoding_strategy = gr.Radio(
-        [
-            "Greedy",
-            "Top P Sampling",
-        ],
-        value="Greedy",
-        label="Decoding strategy",
-        interactive=True,
-        info="Higher values is equivalent to sampling more low-probability tokens.",
-        visible=False,
-    )
-    temperature = gr.Slider(
-        minimum=0.0,
-        maximum=5.0,
-        value=0.4,
-        step=0.1,
-        interactive=True,
-        visible=False,
-        label="Sampling temperature",
-        info="Higher values will produce more diverse outputs.",
-    )
-    top_p = gr.Slider(
-        minimum=0.01,
-        maximum=0.99,
-        value=0.8,
-        step=0.01,
-        interactive=True,
-        visible=False,
-        label="Top P",
-        info="Higher values is equivalent to sampling more low-probability tokens.",
-    )
     decoding_strategy.change(
         fn=lambda selection: gr.Slider(
             visible=(
@@ -415,8 +398,7 @@ with gr.Blocks() as demo:
         # examples=[{"text": "hello"}, {"text": "hola"}, {"text": "merhaba"}],
         title="Echo Bot",
         multimodal=True,
-        additional_inputs=[decoding_strategy, temperature, max_new_tokens, repetition_penalty, top_p, model_selector],
+        additional_inputs=[model_selector, decoding_strategy, temperature, max_new_tokens, repetition_penalty, top_p],
     )
-
 
 demo.launch()
