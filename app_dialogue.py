@@ -2,6 +2,7 @@ import copy
 import os
 import spaces
 import subprocess
+import time
 import torch
 
 from threading import Thread
@@ -316,7 +317,8 @@ def model_inference(
     except Exception as e:
         print("error")
         gr.Error(e)
-    print("success")
+    print(f"Success! Generated the following sequence: `{acc_text}`")
+    time.sleep(0.5)
 
 
 # Hyper-parameters for generation
