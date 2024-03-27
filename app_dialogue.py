@@ -313,12 +313,13 @@ def model_inference(
     try:
         for text_token in streamer:
             acc_text += text_token
+            time.sleep(0.03)
             yield acc_text
     except Exception as e:
         print("error")
         gr.Error(e)
     print(f"Success! Generated the following sequence: `{acc_text}`")
-    time.sleep(0.5)
+    
 
 
 # Hyper-parameters for generation
