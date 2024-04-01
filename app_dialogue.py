@@ -27,12 +27,12 @@ MODELS = {
         token=os.environ["HF_AUTH_TOKEN"],
         revision="73b35c12d88ccc2d9904d9f2f6a755f4973c228c",
     ).to(DEVICE),
-    "288_ter - mix 8 - opt 11'000": AutoModelForCausalLM.from_pretrained(
+    "tr_288_cinco_final_sft_sphinx - opt 11'000": AutoModelForCausalLM.from_pretrained(
         "HuggingFaceM4/idefics2",
         trust_remote_code=True,
         torch_dtype=torch.bfloat16,
         token=os.environ["HF_AUTH_TOKEN"],
-        revision="7eccbf5178f85eee8fab9995f31ab12441ce767a",
+        revision="316ea4acf714760882ad89e364ae1f8c447ae82e",
     ).to(DEVICE),
     # "285 - continued pretraining on text sft - opt 2'000": AutoModelForCausalLM.from_pretrained(
     #     "HuggingFaceM4/idefics2",
