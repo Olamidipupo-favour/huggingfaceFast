@@ -1,6 +1,7 @@
 import copy
 import os
-import spaces
+import random
+# import spaces
 import subprocess
 import time
 import torch
@@ -14,7 +15,7 @@ import gradio as gr
 from transformers import AutoProcessor, TextIteratorStreamer
 from transformers import Idefics2ForConditionalGeneration
 
-subprocess.run('pip install flash-attn --no-build-isolation', env={'FLASH_ATTENTION_SKIP_CUDA_BUILD': "TRUE"}, shell=True)
+# subprocess.run('pip install flash-attn --no-build-isolation', env={'FLASH_ATTENTION_SKIP_CUDA_BUILD': "TRUE"}, shell=True)
 
 DEVICE = torch.device("cuda")
 MODELS = {
@@ -139,7 +140,7 @@ def extract_images_from_msg_list(msg_list):
     return all_images
 
 
-@spaces.GPU(duration=180)
+# @spaces.GPU(duration=180)
 def model_inference(
     user_prompt,
     chat_history,
@@ -151,14 +152,20 @@ def model_inference(
     top_p,
 ):
     if user_prompt["text"].strip() == "" and not user_prompt["files"]:
-        gr.Error("Please input a query and optionally image(s).")
+        raise gr.Error("Please input a query and optionally image(s).")
 
     if user_prompt["text"].strip() == "" and user_prompt["files"]:
-        gr.Error("Please input a text query along the image(s).")
+        raise gr.Error("Please input a text query along the image(s).")
 
     for file in user_prompt["files"]:
         if not file["mime_type"].startswith("image/"):
             gr.Error("Idefics2 only supports images. Please input a valid image.")
+
+    if chat_history:
+        raise gr.Error("The comparative mode only supports single turns")
+
+    if len(MODELS) <= 1:
+        raise gr.Error("There should be at least 2 models to compare (3 might be a stretch on your regular 80GB H100).")
 
     streamer = TextIteratorStreamer(
         PROCESSOR.tokenizer,
@@ -202,28 +209,37 @@ def model_inference(
     inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
     generation_args.update(inputs)
 
-    # # The regular non streaming generation mode
-    # _ = generation_args.pop("streamer")
-    # generated_ids = MODELS[model_selector].generate(**generation_args)
-    # generated_text = PROCESSOR.batch_decode(generated_ids[:, generation_args["input_ids"].size(-1): ], skip_special_tokens=True)[0]
-    # return generated_text
+    # The regular non streaming generation mode
+    _ = generation_args.pop("streamer")
 
-    # The streaming generation mode
-    thread = Thread(
-        target=MODELS[model_selector].generate,
-        kwargs=generation_args,
-    )
-    thread.start()
+    print(f"Input: {user_prompt}")
+    order = random.sample(range(len(MODELS)), len(MODELS))
+    result = ""
+    for idx, selected_model in enumerate(order):
+        generated_ids = MODELS[sorted(list(MODELS.keys()))[selected_model]].generate(**generation_args)
+        generated_text = PROCESSOR.batch_decode(generated_ids[:, generation_args["input_ids"].size(-1): ], skip_special_tokens=True)[0]
+        result += f"**MODEL {chr(65+idx)}**:\n{generated_text}\n\n---------------------\n\n"
+        print(f"MODEL {chr(65+idx)}: {sorted(list(MODELS.keys()))[selected_model]}")
+    print("----------")
+    result = result[:-25]
+    return result
 
-    print("start generating")
-    acc_text = ""
-    for text_token in streamer:
-        time.sleep(0.04)
-        acc_text += text_token
-        if acc_text.endswith("<end_of_utterance>"):
-            acc_text = acc_text[:-18]
-        yield acc_text
-    print("success - generated the following text:", acc_text)
+    # # The streaming generation mode
+    # thread = Thread(
+    #     target=MODELS[model_selector].generate,
+    #     kwargs=generation_args,
+    # )
+    # thread.start()
+
+    # print("start generating")
+    # acc_text = ""
+    # for text_token in streamer:
+    #     time.sleep(0.04)
+    #     acc_text += text_token
+    #     if acc_text.endswith("<end_of_utterance>"):
+    #         acc_text = acc_text[:-18]
+    #     yield acc_text
+    # print("success - generated the following text:", acc_text)
 
 
 # Hyper-parameters for generation
