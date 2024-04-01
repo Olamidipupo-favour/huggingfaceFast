@@ -192,10 +192,10 @@ def model_inference(
     inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
     generation_args.update(inputs)
 
-    # # The regular non streaming generation mode (it returns the prompt too though)
+    # # The regular non streaming generation mode
     # _ = generation_args.pop("streamer")
     # generated_ids = MODELS[model_selector].generate(**generation_args)
-    # generated_text = PROCESSOR.batch_decode(generated_ids, skip_special_tokens=True)[0]
+    # generated_text = PROCESSOR.batch_decode(generated_ids[:, generation_args["input_ids"].size(-1): ], skip_special_tokens=True)[0]
     # return generated_text
 
     # The streaming generation mode
