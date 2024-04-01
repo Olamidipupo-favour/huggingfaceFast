@@ -19,7 +19,7 @@ subprocess.run('pip install flash-attn --no-build-isolation', env={'FLASH_ATTENT
 DEVICE = torch.device("cuda")
 MODELS = {
     "idefics2": Idefics2ForConditionalGeneration.from_pretrained(
-        "/fsx/m4/victor/idefics2-tfrm-compatible",
+        "HuggingFaceM4/idefics2-tfrm-compatible",
         torch_dtype=torch.bfloat16,
         _attn_implementation="flash_attention_2",
         trust_remote_code=True,
