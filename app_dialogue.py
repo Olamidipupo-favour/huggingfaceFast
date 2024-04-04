@@ -20,12 +20,12 @@ subprocess.run('pip install flash-attn --no-build-isolation', env={'FLASH_ATTENT
 
 DEVICE = torch.device("cuda")
 MODELS = {
-    "tr_289_288_ter_12600_lima - opt 1400": AutoModelForCausalLM.from_pretrained(
+    "tr_290_bis_288_cinco_chatty - opt 150": AutoModelForCausalLM.from_pretrained(
         "HuggingFaceM4/idefics2",
         trust_remote_code=True,
         torch_dtype=torch.bfloat16,
         token=os.environ["HF_AUTH_TOKEN"],
-        revision="25ba1dcabccbaa1662fe90f186fc48fccdd09d4a",
+        revision="818152b832454ca54549fd8afc30703be0c01d69",
     ).to(DEVICE),
     "tr_288_cinco_final_sft_sphinx - opt 11'000": AutoModelForCausalLM.from_pretrained(
         "HuggingFaceM4/idefics2",
