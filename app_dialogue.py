@@ -25,7 +25,7 @@ MODELS = {
         trust_remote_code=True,
         torch_dtype=torch.bfloat16,
         token=os.environ["HF_AUTH_TOKEN"],
-        revision="818152b832454ca54549fd8afc30703be0c01d69",
+        revision="9e47f905a9e262451c749286fcb97516cedff6d3",
     ).to(DEVICE),
     "tr_288_cinco_final_sft_sphinx - opt 11'000": AutoModelForCausalLM.from_pretrained(
         "HuggingFaceM4/idefics2",
