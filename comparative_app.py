@@ -19,21 +19,21 @@ from transformers import Idefics2ForConditionalGeneration
 
 DEVICE = torch.device("cuda")
 MODELS = {
-    "idefics2 lima 200": Idefics2ForConditionalGeneration.from_pretrained(
+    "tr_288_cinco_final_sft_sphinx_11000": Idefics2ForConditionalGeneration.from_pretrained(
         "HuggingFaceM4/idefics2-tfrm-compatible",
         torch_dtype=torch.bfloat16,
         _attn_implementation="flash_attention_2",
         trust_remote_code=True,
         token=os.environ["HF_AUTH_TOKEN"],
-        revision="11794e2ae02dbf1c55d0ebd92c28e5b0b604cf5f",
+        revision="2e56f9030ba9a17b6ebcd1c9ad5311d5fad0115f",
     ).to(DEVICE),
-    "idefics2 sft 12600": Idefics2ForConditionalGeneration.from_pretrained(
+    "tr_290_bis_288_cinco_chatty_150": Idefics2ForConditionalGeneration.from_pretrained(
         "HuggingFaceM4/idefics2-tfrm-compatible",
         torch_dtype=torch.bfloat16,
         _attn_implementation="flash_attention_2",
         trust_remote_code=True,
         token=os.environ["HF_AUTH_TOKEN"],
-        revision="86f134822798266d0d8db049cc6458c625e32344",
+        revision="3dc93be345d64fb6b1c550a233fe87ddb36f183d",
     ).to(DEVICE),
 }
 PROCESSOR = AutoProcessor.from_pretrained(
@@ -199,13 +199,7 @@ def model_inference(
         user_prompt=user_prompt,
         chat_history=chat_history,
     )
-    msg = PROCESSOR.apply_chat_template(formated_prompt_list, add_generation_prompt=True, tokenize=False)
-    inputs = PROCESSOR.tokenizer(msg, return_tensors="pt", add_special_tokens=False)
-    all_images = extract_images_from_msg_list(formated_prompt_list)
-    if all_images:
-        img_inp = PROCESSOR(all_images)
-        inputs["pixel_values"] = torch.tensor(img_inp["pixel_values"])
-        inputs["pixel_attention_mask"] = torch.tensor(img_inp["pixel_attention_mask"])
+    inputs = PROCESSOR.apply_chat_template(formated_prompt_list, add_generation_prompt=True, return_tensors="pt")
     inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
     generation_args.update(inputs)
 

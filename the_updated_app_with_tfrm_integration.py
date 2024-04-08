@@ -192,13 +192,7 @@ def model_inference(
         user_prompt=user_prompt,
         chat_history=chat_history,
     )
-    msg = PROCESSOR.apply_chat_template(formated_prompt_list, add_generation_prompt=True, tokenize=False)
-    inputs = PROCESSOR.tokenizer(msg, return_tensors="pt", add_special_tokens=False)
-    all_images = extract_images_from_msg_list(formated_prompt_list)
-    if all_images:
-        img_inp = PROCESSOR(all_images)
-        inputs["pixel_values"] = torch.tensor(img_inp["pixel_values"])
-        inputs["pixel_attention_mask"] = torch.tensor(img_inp["pixel_attention_mask"])
+    inputs = PROCESSOR.apply_chat_template(formated_prompt_list, add_generation_prompt=True, return_tensors="pt")
     inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
     generation_args.update(inputs)
 
