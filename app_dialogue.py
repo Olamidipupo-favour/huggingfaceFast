@@ -296,6 +296,15 @@ with gr.Blocks(fill_height=True) as demo:
         outputs=temperature,
     )
     decoding_strategy.change(
+        fn=lambda selection: gr.Slider(
+            visible=(
+                selection in ["contrastive_sampling", "beam_sampling", "Top P Sampling", "sampling_top_k"]
+            )
+        ),
+        inputs=decoding_strategy,
+        outputs=repetition_penalty,
+    )
+    decoding_strategy.change(
         fn=lambda selection: gr.Slider(visible=(selection in ["Top P Sampling"])),
         inputs=decoding_strategy,
         outputs=top_p,
