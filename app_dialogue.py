@@ -1,7 +1,14 @@
-import copy
 import os
-import spaces
 import subprocess
+
+# Install flash attention
+subprocess.run('pip install flash-attn --no-build-isolation', env={'FLASH_ATTENTION_SKIP_CUDA_BUILD': "TRUE"}, shell=True)
+# Install private transformers fork which is the only place where idefics2 has been integrated at the time being
+subprocess.run(f"pip install git+https://VictorSanh:{os.environ['TRANSFORMERS_NEW_MODEL_ADDITION_TOKEN']}@github.com/huggingface/new-model-addition.git@fae11925a79d34fb0a9d6562941cacc177bd3f53", shell=True)
+
+
+import copy
+import spaces
 import time
 import torch
 
@@ -14,15 +21,11 @@ import gradio as gr
 from transformers import AutoProcessor, TextIteratorStreamer
 from transformers import Idefics2ForConditionalGeneration
 
-# Install flash attention
-subprocess.run('pip install flash-attn --no-build-isolation', env={'FLASH_ATTENTION_SKIP_CUDA_BUILD': "TRUE"}, shell=True)
-# Install private transformers fork which is the only place where idefics2 has been integrated at the time being
-subprocess.run(f"pip install git+https://VictorSanh:{os.environ['TRANSFORMERS_NEW_MODEL_ADDITION_TOKEN']}@github.com/huggingface/new-model-addition.git@fae11925a79d34fb0a9d6562941cacc177bd3f53", shell=True)
 
 DEVICE = torch.device("cuda")
 MODELS = {
     "idefics2-8b (sft)": Idefics2ForConditionalGeneration.from_pretrained(
-        "/fsx/m4/victor/idefics2-8b",
+        "HuggingFaceM4/idefics2-8b",
         torch_dtype=torch.bfloat16,
         _attn_implementation="flash_attention_2",
         trust_remote_code=True,
