@@ -6,43 +6,53 @@ import time
 import torch
 
 from threading import Thread
-from typing import List, Dict, Union
+from typing import List, Tuple
 from urllib.parse import urlparse
 from PIL import Image
 
 import gradio as gr
-from transformers import AutoProcessor, TextIteratorStreamer
-from transformers import Idefics2ForConditionalGeneration
+from gradio_client.client import DEFAULT_TEMP_DIR
+from transformers import AutoProcessor, AutoModelForCausalLM, TextIteratorStreamer
+from transformers.image_utils import to_numpy_array, PILImageResampling, ChannelDimension
+from transformers.image_transforms import resize, to_channel_dimension_format
 
 subprocess.run('pip install flash-attn --no-build-isolation', env={'FLASH_ATTENTION_SKIP_CUDA_BUILD': "TRUE"}, shell=True)
 
 DEVICE = torch.device("cuda")
 MODELS = {
-    "idefics2 lima 200": Idefics2ForConditionalGeneration.from_pretrained(
-        "HuggingFaceM4/idefics2-tfrm-compatible",
-        torch_dtype=torch.bfloat16,
-        _attn_implementation="flash_attention_2",
+    "tr_290_bis_288_cinco_chatty - opt 150": AutoModelForCausalLM.from_pretrained(
+        "HuggingFaceM4/idefics2",
         trust_remote_code=True,
-        token=os.environ["HF_AUTH_TOKEN"],
-        revision="11794e2ae02dbf1c55d0ebd92c28e5b0b604cf5f",
-    ).to(DEVICE),
-    "idefics2 sft 12600": Idefics2ForConditionalGeneration.from_pretrained(
-        "HuggingFaceM4/idefics2-tfrm-compatible",
         torch_dtype=torch.bfloat16,
-        _attn_implementation="flash_attention_2",
-        trust_remote_code=True,
         token=os.environ["HF_AUTH_TOKEN"],
-        revision="86f134822798266d0d8db049cc6458c625e32344",
+        revision="9e47f905a9e262451c749286fcb97516cedff6d3",
     ).to(DEVICE),
+    "tr_288_cinco_final_sft_sphinx - opt 11'000": AutoModelForCausalLM.from_pretrained(
+        "HuggingFaceM4/idefics2",
+        trust_remote_code=True,
+        torch_dtype=torch.bfloat16,
+        token=os.environ["HF_AUTH_TOKEN"],
+        revision="316ea4acf714760882ad89e364ae1f8c447ae82e",
+    ).to(DEVICE),
+    # "285 - continued pretraining on text sft - opt 2'000": AutoModelForCausalLM.from_pretrained(
+    #     "HuggingFaceM4/idefics2",
+    #     trust_remote_code=True,
+    #     torch_dtype=torch.bfloat16,
+    #     token=os.environ["HF_AUTH_TOKEN"],
+    #     revision="b0a2a564e5dc311591886bb375e8d5a1aeaade83",
+    # ).to(DEVICE),
 }
 PROCESSOR = AutoProcessor.from_pretrained(
-    "HuggingFaceM4/idefics2-tfrm-compatible",
+    "HuggingFaceM4/idefics2",
     token=os.environ["HF_AUTH_TOKEN"],
 )
+FAKE_TOK_AROUND_IMAGE = "<fake_token_around_image>"
+BOS_TOKEN = PROCESSOR.tokenizer.bos_token
 BAD_WORDS_IDS = PROCESSOR.tokenizer(["<image>", "<fake_token_around_image>"], add_special_tokens=False).input_ids
 EOS_WORDS_IDS = PROCESSOR.tokenizer("<end_of_utterance>", add_special_tokens=False).input_ids + [PROCESSOR.tokenizer.eos_token_id]
+IMAGE_SEQ_LEN = 64#list(MODELS.values())[0].config.perceiver_config.resampler_n_latents
 
-SYSTEM_PROMPT = [ # Deactivating the system propmpt for now, but if I were to reactivate it, I would need to a/ transform turns into dict for applying the chat template, b/ manually overwrite the `default_template` to add the first line (that is not part of any turns), in particular for handling the bos_token.
+SYSTEM_PROMPT = [
 #     """The following is a conversation between a highly knowledgeable and intelligent visual AI assistant, called Assistant, and a human user, called User. In the following interactions, User and Assistant will converse in natural language, and Assistant will do its best to answer User’s questions. Assistant has the ability to perceive images and reason about the content of visual inputs. Assistant was built to be respectful, polite and inclusive. It knows a lot, and always tells the truth. When prompted with an image, it does not make up facts.
 
 # The conversation begins:""",
@@ -73,14 +83,127 @@ API_TOKEN = os.getenv("HF_AUTH_TOKEN")
 BOT_AVATAR = "IDEFICS_logo.png"
 
 
+# Model processing utils - these will be handled in the model processor directly ultimately
+def convert_to_rgb(image):
+    # `image.convert("RGB")` would only work for .jpg images, as it creates a wrong background
+    # for transparent images. The call to `alpha_composite` handles this case
+    if image.mode == "RGB":
+        return image
+
+    image_rgba = image.convert("RGBA")
+    background = Image.new("RGBA", image_rgba.size, (255, 255, 255))
+    alpha_composite = Image.alpha_composite(background, image_rgba)
+    alpha_composite = alpha_composite.convert("RGB")
+    return alpha_composite
+
+
+def custom_transform(x):
+    x = convert_to_rgb(x)
+    x = to_numpy_array(x)
+
+    height, width = x.shape[:2]
+    aspect_ratio = width / height
+    if width >= height and width > 980:
+        width = 980
+        height = int(width / aspect_ratio)
+    elif height > width and height > 980:
+        height = 980
+        width = int(height * aspect_ratio)
+    width = max(width, 378)
+    height = max(height, 378)
+
+    x = resize(x, (height, width), resample=PILImageResampling.BILINEAR)
+    x = PROCESSOR.image_processor.rescale(x, scale=1 / 255)
+    x = PROCESSOR.image_processor.normalize(
+        x,
+        mean=PROCESSOR.image_processor.image_mean,
+        std=PROCESSOR.image_processor.image_std
+    )
+    x = to_channel_dimension_format(x, ChannelDimension.FIRST)
+    x = torch.tensor(x)
+    return x
+
+
+def create_model_inputs(
+        input_texts: List[str],
+        image_lists: List[List[Image.Image]],
+    ):
+    """
+    All this logic will eventually be handled inside the model processor.
+    """
+    inputs = PROCESSOR.tokenizer(
+        input_texts,
+        return_tensors="pt",
+        add_special_tokens=False,
+        padding=True,
+    )
+
+    output_images = [
+        [PROCESSOR.image_processor(img, transform=custom_transform) for img in im_list]
+        for im_list in image_lists
+    ]
+    total_batch_size = len(output_images)
+    max_num_images = max([len(img_l) for img_l in output_images])
+    if max_num_images > 0:
+        max_height = max([i.size(2) for img_l in output_images for i in img_l])
+        max_width = max([i.size(3) for img_l in output_images for i in img_l])
+        padded_image_tensor = torch.zeros(total_batch_size, max_num_images, 3, max_height, max_width)
+        padded_pixel_attention_masks = torch.zeros(
+            total_batch_size, max_num_images, max_height, max_width, dtype=torch.bool
+        )
+        for batch_idx, img_l in enumerate(output_images):
+            for img_idx, img in enumerate(img_l):
+                im_height, im_width = img.size()[2:]
+                padded_image_tensor[batch_idx, img_idx, :, :im_height, :im_width] = img
+                padded_pixel_attention_masks[batch_idx, img_idx, :im_height, :im_width] = True
+
+        inputs["pixel_values"] = padded_image_tensor
+        inputs["pixel_attention_mask"] = padded_pixel_attention_masks
+
+    return inputs
+
+
 # Chatbot utils
+def is_image(string: str) -> bool:
+    """
+    There are two ways for images: local image path or url.
+    """
+    return is_url(string) or string.startswith(DEFAULT_TEMP_DIR)
+
+
+def is_url(string: str) -> bool:
+    """
+    Checks if the passed string contains a valid url and nothing else. e.g. if space is included it's immediately
+    invalidated the url
+    """
+    if " " in string:
+        return False
+    result = urlparse(string)
+    return all([result.scheme, result.netloc])
+
+
+def prompt_list_to_model_input(prompt_list: List[str]) -> Tuple[str, List[Image.Image]]:
+    """
+    Create the final input string and image list to feed to the model.
+    """
+    images = []
+    for idx, part in enumerate(prompt_list):
+        if is_image(part):
+            images.append(Image.open(part))
+            prompt_list[idx] = f"{FAKE_TOK_AROUND_IMAGE}{'<image>' * IMAGE_SEQ_LEN}{FAKE_TOK_AROUND_IMAGE}"
+    input_text = "".join(prompt_list)
+    input_text = input_text.replace(FAKE_TOK_AROUND_IMAGE * 2, FAKE_TOK_AROUND_IMAGE)
+    input_text = BOS_TOKEN + input_text.strip()
+    return input_text, images
+
+
 def turn_is_pure_media(turn):
     return turn[1] is None
 
 
 def format_user_prompt_with_im_history_and_system_conditioning(
     user_prompt, chat_history
-) -> List[Dict[str, Union[List, str]]]:
+) -> List[str]:
     """
     Produces the resulting list that needs to go inside the processor.
     It handles the potential image(s), the history and the system conditionning.
@@ -89,54 +212,28 @@ def format_user_prompt_with_im_history_and_system_conditioning(
 
     # Format history
     for turn in chat_history:
-        if not resulting_list or (resulting_list and resulting_list[-1]["role"] != "user"):
-            resulting_list.append(
-                {
-                    "role": "user",
-                    "content": [],
-                }
-            )
-
         if turn_is_pure_media(turn):
             media = turn[0][0]
-            resulting_list[-1]["content"].append(Image.open(media))
+            if resulting_list == [] or (resulting_list != [] and resulting_list[-1].endswith("<end_of_utterance>")):
+                resulting_list.append("\nUser:")
+            resulting_list.append(media)
         else:
             user_utterance, assistant_utterance = turn
-            resulting_list[-1]["content"].append(user_utterance.strip())
-            resulting_list.append(
-                {
-                    "role": "assistant",
-                    "content": [assistant_utterance]
-                }
-            )
+            if resulting_list and is_image(resulting_list[-1]): # means that previous `turn` in `chat_history` was a pure media
+                resulting_list.append(f"{user_utterance.strip()}<end_of_utterance>\nAssistant: {assistant_utterance}<end_of_utterance>")
+            else:
+                resulting_list.append(f"\nUser: {user_utterance.strip()}<end_of_utterance>\nAssistant: {assistant_utterance}<end_of_utterance>")
 
     # Format current input
     if not user_prompt["files"]:
-        resulting_list.append(
-            {
-                "role": "user",
-                "content": [user_prompt['text']],
-            }
-        )
+        resulting_list.append(f"\nUser: ")
     else:
-        # Choosing to put the image first (i.e. before the text), but this is an arbiratrary choice.
-        resulting_list.append(
-            {
-                "role": "user",
-                "content": [Image.open(im['path']) for im in user_prompt['files']] + [user_prompt['text']],
-            }
-        )
+        # Choosing to put the image first when the image is inputted through the UI, but this is an arbiratrary choice.
+        resulting_list.append("\nUser:")
+        resulting_list.extend([im["path"] for im in user_prompt["files"]])
+    resulting_list.append(f"{user_prompt['text']}<end_of_utterance>\nAssistant:")
 
     return resulting_list
-
-
-def extract_images_from_msg_list(msg_list):
-    all_images = []
-    for msg in msg_list:
-        for c_ in msg["content"]:
-            if isinstance(c_, Image.Image):
-                all_images.append(c_)
-    return all_images
 
 
 @spaces.GPU(duration=180)
@@ -159,6 +256,11 @@ def model_inference(
     for file in user_prompt["files"]:
         if not file["mime_type"].startswith("image/"):
             gr.Error("Idefics2 only supports images. Please input a valid image.")
+
+    formated_prompt_list = format_user_prompt_with_im_history_and_system_conditioning(
+        user_prompt=user_prompt,
+        chat_history=chat_history,
+    )
 
     streamer = TextIteratorStreamer(
         PROCESSOR.tokenizer,
@@ -187,22 +289,19 @@ def model_inference(
         generation_args["do_sample"] = True
         generation_args["top_p"] = top_p
 
+
     # Creating model inputs
-    formated_prompt_list = format_user_prompt_with_im_history_and_system_conditioning(
-        user_prompt=user_prompt,
-        chat_history=chat_history,
-    )
-    inputs = PROCESSOR.apply_chat_template(formated_prompt_list, add_generation_prompt=True, return_tensors="pt")
+    input_text, images = prompt_list_to_model_input(formated_prompt_list)
+    inputs = create_model_inputs([input_text], [images])
     inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
     generation_args.update(inputs)
 
     # # The regular non streaming generation mode
     # _ = generation_args.pop("streamer")
     # generated_ids = MODELS[model_selector].generate(**generation_args)
-    # generated_text = PROCESSOR.batch_decode(generated_ids[:, generation_args["input_ids"].size(-1): ], skip_special_tokens=True)[0]
+    # generated_text = PROCESSOR.batch_decode(generated_ids, skip_special_tokens=True)[0]
     # return generated_text
 
-    # The streaming generation mode
     thread = Thread(
         target=MODELS[model_selector].generate,
         kwargs=generation_args,
@@ -211,13 +310,16 @@ def model_inference(
 
     print("start generating")
     acc_text = ""
-    for text_token in streamer:
-        time.sleep(0.04)
-        acc_text += text_token
-        if acc_text.endswith("<end_of_utterance>"):
-            acc_text = acc_text[:-18]
-        yield acc_text
-    print("success - generated the following text:", acc_text)
+    try:
+        for text_token in streamer:
+            acc_text += text_token
+            time.sleep(0.03)
+            yield acc_text
+    except Exception as e:
+        print("error")
+        gr.Error(e)
+    print(f"Success! Generated the following sequence: `{acc_text}`")
+    
 
 
 # Hyper-parameters for generation
@@ -271,7 +373,7 @@ top_p = gr.Slider(
 chatbot = gr.Chatbot(
     label="IDEFICS2",
     avatar_images=[None, BOT_AVATAR],
-    height=750,
+    height=500,
 )
 
 
