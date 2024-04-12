@@ -273,7 +273,7 @@ chatbot = gr.Chatbot(
 )
 
 
-with gr.Blocks(fill_height=True) as demo:
+with gr.Blocks(fill_height=True, css=".message-wrap.svelte-1lcyrx4>div.svelte-1lcyrx4 img { width: auto; max-width: 75%; height: auto; max-height: 75%; }") as demo: as demo:
     # model selector should be set to `visbile=False` ultimately
     with gr.Row(elem_id="model_selector_row"):
         model_selector = gr.Dropdown(
