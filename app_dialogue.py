@@ -4,7 +4,7 @@ import subprocess
 # Install flash attention
 subprocess.run('pip install flash-attn --no-build-isolation', env={'FLASH_ATTENTION_SKIP_CUDA_BUILD': "TRUE"}, shell=True)
 # Install private transformers fork which is the only place where idefics2 has been integrated at the time being
-subprocess.run(f"pip install git+https://VictorSanh:{os.environ['TRANSFORMERS_NEW_MODEL_ADDITION_TOKEN']}@github.com/huggingface/new-model-addition.git@fae11925a79d34fb0a9d6562941cacc177bd3f53", shell=True)
+subprocess.run(f"pip install git+https://VictorSanh:{os.environ['TRANSFORMERS_NEW_MODEL_ADDITION_TOKEN']}@github.com/huggingface/new-model-addition.git@b122cb2d878159a2928a9b423b157126f5f89ed4", shell=True)
 
 
 import copy
