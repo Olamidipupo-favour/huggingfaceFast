@@ -41,11 +41,9 @@ MODELS = {
 
 }
 PROCESSOR = AutoProcessor.from_pretrained(
-    "HuggingFaceM4/idefics2-tfrm-compatible",
+    "HuggingFaceM4/idefics2-8b",
     token=os.environ["HF_AUTH_TOKEN"],
 )
-BAD_WORDS_IDS = PROCESSOR.tokenizer(["<image>", "<fake_token_around_image>"], add_special_tokens=False).input_ids
-EOS_WORDS_IDS = PROCESSOR.tokenizer("<end_of_utterance>", add_special_tokens=False).input_ids + [PROCESSOR.tokenizer.eos_token_id]
 
 SYSTEM_PROMPT = [ # Deactivating the system propmpt for now, but if I were to reactivate it, I would need to a/ transform turns into dict for applying the chat template, b/ manually overwrite the `default_template` to add the first line (that is not part of any turns), in particular for handling the bos_token.
 #     """The following is a conversation between a highly knowledgeable and intelligent visual AI assistant, called Assistant, and a human user, called User. In the following interactions, User and Assistant will converse in natural language, and Assistant will do its best to answer User’s questions. Assistant has the ability to perceive images and reason about the content of visual inputs. Assistant was built to be respectful, polite and inclusive. It knows a lot, and always tells the truth. When prompted with an image, it does not make up facts.
@@ -90,12 +88,13 @@ def format_user_prompt_with_im_history_and_system_conditioning(
     Produces the resulting list that needs to go inside the processor.
     It handles the potential image(s), the history and the system conditionning.
     """
-    resulting_list = copy.deepcopy(SYSTEM_PROMPT)
+    resulting_messages = copy.deepcopy(SYSTEM_PROMPT)
+    resulting_images = []
 
     # Format history
     for turn in chat_history:
-        if not resulting_list or (resulting_list and resulting_list[-1]["role"] != "user"):
-            resulting_list.append(
+        if not resulting_messages or (resulting_messages and resulting_messages[-1]["role"] != "user"):
+            resulting_messages.append(
                 {
                     "role": "user",
                     "content": [],
@@ -104,35 +103,45 @@ def format_user_prompt_with_im_history_and_system_conditioning(
 
         if turn_is_pure_media(turn):
             media = turn[0][0]
-            resulting_list[-1]["content"].append(Image.open(media))
+            resulting_messages[-1]["content"].append({"type": "image"})
+            resulting_images.append(Image.open(media))
         else:
             user_utterance, assistant_utterance = turn
-            resulting_list[-1]["content"].append(user_utterance.strip())
-            resulting_list.append(
+            resulting_messages[-1]["content"].append(
+                {"type": "text", "text": user_utterance.strip()}
+            )
+            resulting_messages.append(
                 {
                     "role": "assistant",
-                    "content": [assistant_utterance]
+                    "content": [
+                        {"type": "text", "text": user_utterance.strip()}
+                    ]
                 }
             )
 
     # Format current input
     if not user_prompt["files"]:
-        resulting_list.append(
+        resulting_messages.append(
             {
                 "role": "user",
-                "content": [user_prompt['text']],
+                "content": [
+                    {"type": "text", "text": user_prompt['text']}
+                ],
             }
         )
     else:
         # Choosing to put the image first (i.e. before the text), but this is an arbiratrary choice.
-        resulting_list.append(
+        resulting_messages.append(
             {
                 "role": "user",
-                "content": [Image.open(im['path']) for im in user_prompt['files']] + [user_prompt['text']],
+                "content": [{"type": "image"}] * len(user_prompt['files']) + [
+                    {"type": "text", "text": user_prompt['text']}
+                ]
             }
         )
+        resulting_images.extend([Image.open(im['path']) for im in user_prompt['files']])
 
-    return resulting_list
+    return resulting_messages, resulting_images
 
 
 def extract_images_from_msg_list(msg_list):
@@ -176,8 +185,6 @@ def model_inference(
     generation_args = {
         "max_new_tokens": max_new_tokens,
         "repetition_penalty": repetition_penalty,
-        "bad_words_ids": BAD_WORDS_IDS,
-        "eos_token_id": EOS_WORDS_IDS,
         "streamer": streamer,
     }
 
@@ -193,11 +200,12 @@ def model_inference(
         generation_args["top_p"] = top_p
 
     # Creating model inputs
-    formated_prompt_list = format_user_prompt_with_im_history_and_system_conditioning(
+    resulting_text, resulting_images = format_user_prompt_with_im_history_and_system_conditioning(
         user_prompt=user_prompt,
         chat_history=chat_history,
     )
-    inputs = PROCESSOR.apply_chat_template(formated_prompt_list, add_generation_prompt=True, return_tensors="pt")
+    prompt = PROCESSOR.apply_chat_template(resulting_text, add_generation_prompt=True)
+    inputs = PROCESSOR(text=prompt, images=resulting_images if resulting_images else None, return_tensors="pt")
     inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
     generation_args.update(inputs)
 
