@@ -24,6 +24,13 @@ from transformers import Idefics2ForConditionalGeneration
 
 DEVICE = torch.device("cuda")
 MODELS = {
+    "idefics2-8b (sft)": Idefics2ForConditionalGeneration.from_pretrained(
+        "HuggingFaceM4/idefics2-8b",
+        torch_dtype=torch.bfloat16,
+        _attn_implementation="flash_attention_2",
+        trust_remote_code=True,
+        token=os.environ["HF_AUTH_TOKEN"],
+    ).to(DEVICE),    
     "idefics2-8b (chat)": Idefics2ForConditionalGeneration.from_pretrained(
         "HuggingFaceM4/idefics2-chat-tfrm-compatible",
         torch_dtype=torch.bfloat16,
@@ -31,14 +38,6 @@ MODELS = {
         trust_remote_code=True,
         token=os.environ["HF_AUTH_TOKEN"],
     ).to(DEVICE),
-    "idefics2-8b (sft)": Idefics2ForConditionalGeneration.from_pretrained(
-        "HuggingFaceM4/idefics2-8b",
-        torch_dtype=torch.bfloat16,
-        _attn_implementation="flash_attention_2",
-        trust_remote_code=True,
-        token=os.environ["HF_AUTH_TOKEN"],
-    ).to(DEVICE),
-
 }
 PROCESSOR = AutoProcessor.from_pretrained(
     "HuggingFaceM4/idefics2-8b",
