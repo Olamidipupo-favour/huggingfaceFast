@@ -30,7 +30,7 @@ MODELS = {
         _attn_implementation="flash_attention_2",
         trust_remote_code=True,
         token=os.environ["HF_AUTH_TOKEN"],
-    ).to(DEVICE),    
+    ).to(DEVICE),
     "idefics2-8b (chat)": Idefics2ForConditionalGeneration.from_pretrained(
         "HuggingFaceM4/idefics2-chat-tfrm-compatible",
         torch_dtype=torch.bfloat16,
@@ -284,7 +284,7 @@ top_p = gr.Slider(
 chatbot = gr.Chatbot(
     label="Idefics2",
     avatar_images=[None, BOT_AVATAR],
-    height=750,
+    # height=750,
 )
 
 
