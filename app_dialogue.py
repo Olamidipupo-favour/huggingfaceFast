@@ -282,11 +282,11 @@ top_p = gr.Slider(
 chatbot = gr.Chatbot(
     label="Idefics2",
     avatar_images=[None, BOT_AVATAR],
-    # height=750,
+    height=850,
 )
 
 
-with gr.Blocks(fill_height=True, css=".message-wrap.svelte-1lcyrx4>div.svelte-1lcyrx4 img { width: auto; max-width: 30%; height: auto; max-height: 30%; }") as demo:
+with gr.Blocks(fill_height=True, css=".message-wrap.svelte-1lcyrx4>div.svelte-1lcyrx4 img { width: auto; max-width: 30%; height: auto; max-height: 30%;} .gradio-container .avatar-container {height: 35px width: 35px !important;}") as demo:
     # model selector should be set to `visbile=False` ultimately
     with gr.Row(elem_id="model_selector_row"):
         model_selector = gr.Dropdown(
