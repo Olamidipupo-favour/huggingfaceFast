@@ -286,7 +286,7 @@ chatbot = gr.Chatbot(
 )
 
 
-with gr.Blocks(fill_height=True, css=""".gradio-container .avatar-container {height: 35px width: 35px !important;}""") as demo:
+with gr.Blocks(fill_height=True, css=""".gradio-container .avatar-container {height: 40px width: 40px !important;}""") as demo:
     # model selector should be set to `visbile=False` ultimately
     with gr.Row(elem_id="model_selector_row"):
         model_selector = gr.Dropdown(
