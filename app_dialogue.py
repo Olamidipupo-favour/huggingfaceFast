@@ -322,13 +322,23 @@ with gr.Blocks(fill_height=True, css=".message-wrap.svelte-1lcyrx4>div.svelte-1l
         inputs=decoding_strategy,
         outputs=top_p,
     )
-
+    examples =[
+        ["./example_images/docvqa_example.png", "How many items are sold?", "Greedy", 0.4, 512, 1.2, 0.8],
+        ["./example_images/example_images_travel_tips.jpg", "I want to go somewhere similar to the one in the photo. Give me destinations and travel tips.", "Greedy", 0.4, 512, 1.2, 0.8],
+        ["./example_images/baklava.png", "Where is this pastry from?", "Greedy", 0.4, 512, 1.2, 0.8],
+        ["./example_images/dummy_pdf.png", "How much percent is the order status?", "Greedy", 0.4, 512, 1.2, 0.8],
+        ["./example_images/art_critic.png", "As an art critic AI assistant, could you describe this painting in details and make a thorough critic?.", "Greedy", 0.4, 512, 1.2, 0.8],
+        ["./example_images/s2w_example.png", "What is this UI about?", "Greedy", 0.4, 512, 1.2, 0.8]
+    ]
+    
+    description = "Try [IDEFICS2-8B](https://huggingface.co/HuggingFaceM4/idefics2-8b), the instruction fine-tuned IDEFICS2, and [IDEFICS2 Chatty](CHATTY_LINK_HERE) in this demo. 🐶💬 IDEFICS2 is a state-of-the-art vision language model in various benchmarks. To get started, upload an image and write a text prompt or try one of the examples. You can also play with advanced generation parameters. To learn more about IDEFICS2, read [the blog](https://huggingface.co/blog/idefics2)."
     gr.ChatInterface(
         fn=model_inference,
         chatbot=chatbot,
-        # examples=[{"text": "hello"}, {"text": "hola"}, {"text": "merhaba"}],
-        title="Idefics2 Playground",
+        examples=examples,
+        title="Idefics2 Playground 💬",
         multimodal=True,
+        description=description,
         additional_inputs=[model_selector, decoding_strategy, temperature, max_new_tokens, repetition_penalty, top_p],
     )
 
