@@ -3,8 +3,6 @@ import subprocess
 
 # Install flash attention
 subprocess.run('pip install flash-attn --no-build-isolation', env={'FLASH_ATTENTION_SKIP_CUDA_BUILD': "TRUE"}, shell=True)
-# Install private transformers fork which is the only place where idefics2 has been integrated at the time being
-subprocess.run(f"pip install git+https://github.com/huggingface/transformers.git@16c8317a5cc9297488a08ead83ea5a752f0912b6", shell=True)
 
 
 import copy
@@ -31,8 +29,8 @@ MODELS = {
         trust_remote_code=True,
         token=os.environ["HF_AUTH_TOKEN"],
     ).to(DEVICE),
-    "idefics2-8b (chat)": Idefics2ForConditionalGeneration.from_pretrained(
-        "HuggingFaceM4/idefics2-chat-tfrm-compatible",
+    "idefics2-8b-chatty (chat)": Idefics2ForConditionalGeneration.from_pretrained(
+        "HuggingFaceM4/idefics2-8b-chatty",
         torch_dtype=torch.bfloat16,
         _attn_implementation="flash_attention_2",
         trust_remote_code=True,
