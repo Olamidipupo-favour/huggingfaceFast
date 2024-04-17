@@ -42,8 +42,8 @@ PROCESSOR = AutoProcessor.from_pretrained(
     token=os.environ["HF_AUTH_TOKEN"],
 )
 
-SYSTEM_PROMPT = [ # Deactivating the system propmpt for now, but if I were to reactivate it, I would need to a/ transform turns into dict for applying the chat template, b/ manually overwrite the `default_template` to add the first line (that is not part of any turns), in particular for handling the bos_token.
-#     """The following is a conversation between a highly knowledgeable and intelligent visual AI assistant, called Assistant, and a human user, called User. In the following interactions, User and Assistant will converse in natural language, and Assistant will do its best to answer User’s questions. Assistant has the ability to perceive images and reason about the content of visual inputs. Assistant was built to be respectful, polite and inclusive. It knows a lot, and always tells the truth. When prompted with an image, it does not make up facts.
+# SYSTEM_PROMPT = [ # Deactivating the system propmpt for now, but if I were to reactivate it, I would need to a/ transform turns into dict for applying the chat template, b/ manually overwrite the `default_template` to add the first line (that is not part of any turns), in particular for handling the bos_token.
+# #     """The following is a conversation between a highly knowledgeable and intelligent visual AI assistant, called Assistant, and a human user, called User. In the following interactions, User and Assistant will converse in natural language, and Assistant will do its best to answer User’s questions. Assistant has the ability to perceive images and reason about the content of visual inputs. Assistant was built to be respectful, polite and inclusive. It knows a lot, and always tells the truth. When prompted with an image, it does not make up facts.
 
 # The conversation begins:""",
 #     """\nUser:""",
@@ -66,7 +66,38 @@ SYSTEM_PROMPT = [ # Deactivating the system propmpt for now, but if I were to re
 #     "https://i.dailymail.co.uk/i/pix/2011/07/01/article-2010308-0CD22A8300000578-496_634x414.jpg",
 #     "<end_of_utterance>",
 #     """\nAssistant: There is no dogs in this image. The picture shows a tennis player jumping to volley the ball.<end_of_utterance>""",
+# ]
+
+SYSTEM_PROMPT = [
+    {
+        "role": "user",
+        "content": [
+             {"type": "image", "image": "https://i1.pickpik.com/photos/515/906/355/kittens-cats-pet-cute-preview.jpg"},
+             {"type": "text", "text": "Describe this image."},
+        ],
+    },
+    {
+        "role": "assistant",
+        "content": [
+            {"type": "text", "text": "Five kittens are standing together in the center of the photograph. From the left to right, there is one orange kitten, two kittens white and black stripes, and two brown kittens with an orange head. They are in bright green grass and it looks like they are moving forward."},
+        ],
+    },
+    {
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "How about this image?"},
+            {"type": "image", "image": "https://cdn.pixabay.com/photo/2017/09/25/13/12/puppy-2785074_1280.jpg"},
+            {"type": "text", "text": "Can you describe it too?"},
+        ],
+    },
+    {
+        "role": "assistant",
+        "content": [
+                {"type": "text", "text": "A dog is lying on the floor, looking at the camera. It is looking directly at you. The dog has a white body and brown patches on its face and ears. Its eyes are dark. Its nose is black, and it has long, floppy ears, white paws, long fur, big eyes."},
+        ],
+    },
 ]
+
 
 API_TOKEN = os.getenv("HF_AUTH_TOKEN")
 # IDEFICS_LOGO = "https://huggingface.co/spaces/HuggingFaceM4/idefics_playground/resolve/main/IDEFICS_logo.png"
