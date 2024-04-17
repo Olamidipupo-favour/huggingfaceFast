@@ -282,7 +282,7 @@ top_p = gr.Slider(
 chatbot = gr.Chatbot(
     label="Idefics2",
     avatar_images=[None, BOT_AVATAR],
-    height=600,
+    height=450,
 )
 
 
