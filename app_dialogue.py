@@ -2,7 +2,7 @@ import os
 import subprocess
 
 # Install flash attention
-subprocess.run('pip install flash-attn --no-build-isolation', env={'FLASH_ATTENTION_SKIP_CUDA_BUILD': "TRUE"}, shell=True)
+# subprocess.run('pip install flash-attn --no-build-isolation', env={'FLASH_ATTENTION_SKIP_CUDA_BUILD': "TRUE"}, shell=True)
 
 
 import copy
@@ -16,6 +16,10 @@ import urllib
 from urllib.parse import urlparse
 from PIL import Image
 import io
+import pandas as pd
+import datasets
+import json
+import requests
 
 import gradio as gr
 from transformers import AutoProcessor, TextIteratorStreamer
@@ -98,6 +102,31 @@ SYSTEM_PROMPT = [
                 {"type": "text", "text": "A dog is lying on the floor, looking at the camera. It is looking directly at you. The dog has a white body and brown patches on its face and ears. Its eyes are dark. Its nose is black, and it has long, floppy ears, white paws, long fur, big eyes."},
         ],
     },
+    {
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "What can you tell me about this breed of dogs?"},
+        ],
+    },
+    {
+        "role": "assistant",
+        "content": [
+            {"type": "text", "text": "One specific characteristic of the Cavalier King Charles Spaniel is its friendly and affectionate nature. This breed is known for being extremely sociable and forming strong bonds with their owners. They are often described as \"velcro dogs\" because they love to be close to their human companions, whether it's sitting on their laps, cuddling on the couch, or simply following them around the house."},
+        ],
+    },
+    {
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "How many dogs do you see in the following image?"},
+            {"type": "image", "image": "https://huggingface.co/spaces/HuggingFaceM4/idefics_playground/resolve/main/example_images/tennis_tsonga.jpg?download=true"},
+        ],
+    },
+    {
+        "role": "assistant",
+        "content": [
+            {"type": "text", "text": "There are no dogs in this image. The picture shows a tennis player in the midst of a powerful swing."},
+        ],
+    },
 ]
 
 
@@ -126,12 +155,11 @@ def format_user_prompt_with_im_history_and_system_conditioning(
     """
     resulting_messages = copy.deepcopy(SYSTEM_PROMPT)
     resulting_images = []
-    if len(resulting_messages) > 0:
-        for resulting_message in resulting_messages:
-            if resulting_message["role"] == "user":
-                for content in resulting_message["content"]:
-                    if content["type"] == "image":
-                        resulting_images.append(load_image_from_url(content["image"]))
+    for resulting_message in resulting_messages:
+        if resulting_message["role"] == "user":
+            for content in resulting_message["content"]:
+                if content["type"] == "image":
+                    resulting_images.append(load_image_from_url(content["image"]))
 
     # Format history
     for turn in chat_history:
@@ -277,6 +305,59 @@ def model_inference(
     print("-----")
 
 
+def csv_to_hf_dataset(csv_file):
+    df = pd.read_csv(csv_file)
+    
+    FEATURES = datasets.Features(
+        {
+            "images": datasets.Sequence(datasets.Image(decode=True)),
+            "conversation": [
+                {
+                    "user": datasets.Value("string"),
+                    "assistant": datasets.Value("string"),
+                }
+            ],
+        }
+    )
+
+    def parse_and_download(data_row):
+        # Parse the JSON-like structure in the second column
+        discussion_data = json.loads(data_row[1].replace('""', '"'))
+        
+        images = []
+        conversation = []
+        for entry in discussion_data:
+            if isinstance(entry[0], dict) and 'file' in entry[0]:
+                # Get images
+                image = load_image_from_url(entry[0]['file'])
+                images.append(image)
+            elif isinstance(entry, list):
+                # Get conversations
+                conversation.append({"user": entry[0], "assistant": entry[1]})
+
+        return images, conversation
+
+
+    # Apply parsing and downloading function
+    df['processed_data'] = df.apply(parse_and_download, axis=1)
+
+    # Create a Hugging Face dataset
+    data_dict = {
+        "images": df['processed_data'].apply(lambda x: x[0]),
+        "conversation": df['processed_data'].apply(lambda x: x[1])
+    }
+
+    dataset = datasets.Dataset.from_dict(data_dict, features=FEATURES)
+    return dataset
+
+
+def update_dope_problematic_dataset_fn():
+    dope_dataset = csv_to_hf_dataset("gradio_dope_data_points/log.csv")
+    dope_dataset.push_to_hub("HuggingFaceM4/dope_chatty_dataset", private=True)
+    problematic_dataset = csv_to_hf_dataset("gradio_problematic_data_points/log.csv")
+    problematic_dataset.push_to_hub("HuggingFaceM4/problematic_chatty_dataset", private=True)
+
+
 # Hyper-parameters for generation
 max_new_tokens = gr.Slider(
     minimum=8,
@@ -331,6 +412,22 @@ chatbot = gr.Chatbot(
     height=450,
 )
 
+dope_callback = gr.CSVLogger()
+problematic_callback = gr.CSVLogger()
+
+
+# Using Flagging for saving dope and problematic examples
+    # Dope examples flagging
+    
+
+    # gr.Markdown("""## How to use?
+
+    #     There are two ways to provide image inputs:
+    #     - Using the image box on the left panel
+    #     - Using the inline syntax: `text<fake_token_around_image><image:URL_IMAGE><fake_token_around_image>text`
+
+    #     The second syntax allows inputting an arbitrary number of images.""")
+
 
 with gr.Blocks(fill_height=True, css=""".gradio-container .avatar-container {height: 40px width: 40px !important;}""") as demo:
     # model selector should be set to `visbile=False` ultimately
@@ -376,6 +473,70 @@ with gr.Blocks(fill_height=True, css=""".gradio-container .avatar-container {hei
         title="Idefics2 Playground",
         multimodal=True,
         additional_inputs=[model_selector, decoding_strategy, temperature, max_new_tokens, repetition_penalty, top_p],
+    )
+    with gr.Group():
+        with gr.Row():
+            with gr.Column(scale=1, min_width=50):
+                dope_bttn = gr.Button("Dope🔥")
+            with gr.Column(scale=1, min_width=50):
+                problematic_bttn = gr.Button("Problematic😬")
+        with gr.Row():
+            update_dope_problematic_dataset = gr.Button("Update Dope/Problematic dataset📚")
+    dope_callback.setup(
+        [
+            model_selector,
+            chatbot,
+            decoding_strategy,
+            temperature,
+            max_new_tokens,
+            repetition_penalty,
+            top_p,
+        ],
+        "gradio_dope_data_points",
+    )
+    dope_bttn.click(
+        lambda *args: dope_callback.flag(args),
+        [
+            model_selector,
+            chatbot,
+            decoding_strategy,
+            temperature,
+            max_new_tokens,
+            repetition_penalty,
+            top_p,
+        ],
+        None,
+        preprocess=False,
+    )
+    # Problematic examples flagging
+    problematic_callback.setup(
+        [
+            model_selector,
+            chatbot,
+            decoding_strategy,
+            temperature,
+            max_new_tokens,
+            repetition_penalty,
+            top_p,
+        ],
+        "gradio_problematic_data_points",
+    )
+    problematic_bttn.click(
+        lambda *args: problematic_callback.flag(args),
+        [
+            model_selector,
+            chatbot,
+            decoding_strategy,
+            temperature,
+            max_new_tokens,
+            repetition_penalty,
+            top_p,
+        ],
+        None,
+        preprocess=False,
+    )
+    update_dope_problematic_dataset.click(
+        fn=update_dope_problematic_dataset_fn,
     )
 
 demo.launch()
