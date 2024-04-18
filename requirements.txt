@@ -2,4 +2,3 @@ git+https://github.com/huggingface/transformers.git@6b78360e6d686b316360334f5109
 datasets
 pillow
 numpy
-torch
