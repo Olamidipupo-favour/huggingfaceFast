@@ -426,8 +426,6 @@ with gr.Blocks(fill_height=True, css=""".gradio-container .avatar-container {hei
                 dope_bttn = gr.Button("Dope🔥")
             with gr.Column(scale=1, min_width=50):
                 problematic_bttn = gr.Button("Problematic😬")
-        with gr.Row():
-            update_dope_problematic_dataset = gr.Button("Update Dope/Problematic dataset📚")
     dope_callback.setup(
         [
             model_selector,
