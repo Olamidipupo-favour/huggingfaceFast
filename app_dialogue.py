@@ -1,7 +1,7 @@
 import os
 import subprocess
 
-# Install flash attention
+Install flash attention
 subprocess.run('pip install flash-attn --no-build-isolation', env={'FLASH_ATTENTION_SKIP_CUDA_BUILD': "TRUE"}, shell=True)
 
 
@@ -12,8 +12,10 @@ import torch
 
 from threading import Thread
 from typing import List, Dict, Union
+import urllib
 from urllib.parse import urlparse
 from PIL import Image
+import io
 
 import gradio as gr
 from transformers import AutoProcessor, TextIteratorStreamer
@@ -22,13 +24,13 @@ from transformers import Idefics2ForConditionalGeneration
 
 DEVICE = torch.device("cuda")
 MODELS = {
-    "idefics2-8b (sft)": Idefics2ForConditionalGeneration.from_pretrained(
-        "HuggingFaceM4/idefics2-8b",
-        torch_dtype=torch.bfloat16,
-        _attn_implementation="flash_attention_2",
-        trust_remote_code=True,
-        token=os.environ["HF_AUTH_TOKEN"],
-    ).to(DEVICE),
+    # "idefics2-8b (sft)": Idefics2ForConditionalGeneration.from_pretrained(
+    #     "HuggingFaceM4/idefics2-8b",
+    #     torch_dtype=torch.bfloat16,
+    #     _attn_implementation="flash_attention_2",
+    #     trust_remote_code=True,
+    #     token=os.environ["HF_AUTH_TOKEN"],
+    # ).to(DEVICE),
     "idefics2-8b-chatty (chat)": Idefics2ForConditionalGeneration.from_pretrained(
         "HuggingFaceM4/idefics2-8b-chatty",
         torch_dtype=torch.bfloat16,
@@ -47,11 +49,11 @@ PROCESSOR = AutoProcessor.from_pretrained(
 
 # The conversation begins:""",
 #     """\nUser:""",
-#     "https://i1.pickpik.com/photos/515/906/355/kittens-cats-pet-cute-preview.jpg",
+#     "https://huggingface.co/spaces/HuggingFaceM4/idefics_playground/resolve/main/example_images/kittens-cats-pet-cute-preview.jpg?download=true",
 #     "Describe this image.<end_of_utterance>",
 #     """\nAssistant: Five kittens are standing together in the center of the photograph. From the left to right, there is one orange kitten, two kittens white and black stripes, and two brown kittens with an orange head. They are in bright green grass and it looks like they are moving forward.<end_of_utterance>""",
 #     "\nUser:How about this image?",
-#     "https://cdn.pixabay.com/photo/2017/09/25/13/12/puppy-2785074_1280.jpg",
+#     "https://huggingface.co/spaces/HuggingFaceM4/idefics_playground/resolve/main/example_images/puppy.jpg?download=true",
 #     "Can you describe it too?<end_of_utterance>",
 #     """\nAssistant: A dog is lying on the floor, looking at the camera. It is looking directly at you. The dog has a white body and brown patches on its face and ears. Its eyes are dark. Its nose is black, and it has long, floppy ears, white paws, long fur, big eyes.<end_of_utterance>""",
 #     "\nUser: What kind of breed is it?<end_of_utterance>",
@@ -63,7 +65,7 @@ PROCESSOR = AutoProcessor.from_pretrained(
 #     "\nUser: Do you like Cavalier King Charles Spaniel?<end_of_utterance>",
 #     """\nAssistant: I do not have personal opinions as I’m just a computer program. However, cavaliers are known for being excellent family pets due to their gentle and patient demeanor, making them great with children and other pets. Their affectionate nature also makes them ideal therapy dogs, as they can provide comfort and emotional support to those in need.<end_of_utterance>""",
 #     "\nUser: How many dogs do you see in this image?",
-#     "https://i.dailymail.co.uk/i/pix/2011/07/01/article-2010308-0CD22A8300000578-496_634x414.jpg",
+#     "https://huggingface.co/spaces/HuggingFaceM4/idefics_playground/resolve/main/example_images/tennis_tsonga.jpg?download=true",
 #     "<end_of_utterance>",
 #     """\nAssistant: There is no dogs in this image. The picture shows a tennis player jumping to volley the ball.<end_of_utterance>""",
 # ]
@@ -72,7 +74,7 @@ SYSTEM_PROMPT = [
     {
         "role": "user",
         "content": [
-             {"type": "image", "image": "https://i1.pickpik.com/photos/515/906/355/kittens-cats-pet-cute-preview.jpg"},
+             {"type": "image", "image": "https://huggingface.co/spaces/HuggingFaceM4/idefics_playground/resolve/main/example_images/kittens-cats-pet-cute-preview.jpg?download=true"},
              {"type": "text", "text": "Describe this image."},
         ],
     },
@@ -86,7 +88,7 @@ SYSTEM_PROMPT = [
         "role": "user",
         "content": [
             {"type": "text", "text": "How about this image?"},
-            {"type": "image", "image": "https://cdn.pixabay.com/photo/2017/09/25/13/12/puppy-2785074_1280.jpg"},
+            {"type": "image", "image": "https://huggingface.co/spaces/HuggingFaceM4/idefics_playground/resolve/main/example_images/puppy.jpg?download=true"},
             {"type": "text", "text": "Can you describe it too?"},
         ],
     },
@@ -108,6 +110,12 @@ BOT_AVATAR = "IDEFICS_logo.png"
 def turn_is_pure_media(turn):
     return turn[1] is None
 
+def load_image_from_url(url):
+    with urllib.request.urlopen(url) as response:
+        image_data = response.read()
+        image_stream = io.BytesIO(image_data)
+        image = Image.open(image_stream)
+        return image
 
 def format_user_prompt_with_im_history_and_system_conditioning(
     user_prompt, chat_history
@@ -118,6 +126,12 @@ def format_user_prompt_with_im_history_and_system_conditioning(
     """
     resulting_messages = copy.deepcopy(SYSTEM_PROMPT)
     resulting_images = []
+    if len(resulting_messages) > 0:
+        for resulting_message in resulting_messages:
+            if resulting_message["role"] == "user":
+                for content in resulting_message["content"]:
+                    if content["type"] == "image":
+                        resulting_images.append(load_image_from_url(content["image"]))
 
     # Format history
     for turn in chat_history:
@@ -232,6 +246,7 @@ def model_inference(
         user_prompt=user_prompt,
         chat_history=chat_history,
     )
+
     prompt = PROCESSOR.apply_chat_template(resulting_text, add_generation_prompt=True)
     inputs = PROCESSOR(text=prompt, images=resulting_images if resulting_images else None, return_tensors="pt")
     inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
