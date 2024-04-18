@@ -1,7 +1,7 @@
 import os
 import subprocess
 
-Install flash attention
+# Install flash attention
 subprocess.run('pip install flash-attn --no-build-isolation', env={'FLASH_ATTENTION_SKIP_CUDA_BUILD': "TRUE"}, shell=True)
 
 
