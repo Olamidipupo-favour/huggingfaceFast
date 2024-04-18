@@ -304,60 +304,6 @@ def model_inference(
     print("Success - generated the following text:", acc_text)
     print("-----")
 
-
-def csv_to_hf_dataset(csv_file):
-    df = pd.read_csv(csv_file)
-    
-    FEATURES = datasets.Features(
-        {
-            "images": datasets.Sequence(datasets.Image(decode=True)),
-            "conversation": [
-                {
-                    "user": datasets.Value("string"),
-                    "assistant": datasets.Value("string"),
-                }
-            ],
-        }
-    )
-
-    def parse_and_download(data_row):
-        # Parse the JSON-like structure in the second column
-        discussion_data = json.loads(data_row[1].replace('""', '"'))
-        
-        images = []
-        conversation = []
-        for entry in discussion_data:
-            if isinstance(entry[0], dict) and 'file' in entry[0]:
-                # Get images
-                image = load_image_from_url(entry[0]['file'])
-                images.append(image)
-            elif isinstance(entry, list):
-                # Get conversations
-                conversation.append({"user": entry[0], "assistant": entry[1]})
-
-        return images, conversation
-
-
-    # Apply parsing and downloading function
-    df['processed_data'] = df.apply(parse_and_download, axis=1)
-
-    # Create a Hugging Face dataset
-    data_dict = {
-        "images": df['processed_data'].apply(lambda x: x[0]),
-        "conversation": df['processed_data'].apply(lambda x: x[1])
-    }
-
-    dataset = datasets.Dataset.from_dict(data_dict, features=FEATURES)
-    return dataset
-
-
-def update_dope_problematic_dataset_fn():
-    dope_dataset = csv_to_hf_dataset("gradio_dope_data_points/log.csv")
-    dope_dataset.push_to_hub("HuggingFaceM4/dope_chatty_dataset", private=True)
-    problematic_dataset = csv_to_hf_dataset("gradio_problematic_data_points/log.csv")
-    problematic_dataset.push_to_hub("HuggingFaceM4/problematic_chatty_dataset", private=True)
-
-
 # Hyper-parameters for generation
 max_new_tokens = gr.Slider(
     minimum=8,
@@ -534,9 +480,6 @@ with gr.Blocks(fill_height=True, css=""".gradio-container .avatar-container {hei
         ],
         None,
         preprocess=False,
-    )
-    update_dope_problematic_dataset.click(
-        fn=update_dope_problematic_dataset_fn,
     )
 
 demo.launch()
