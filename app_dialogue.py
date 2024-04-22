@@ -35,12 +35,13 @@ MODELS = {
     #     trust_remote_code=True,
     #     token=os.environ["HF_AUTH_TOKEN"],
     # ).to(DEVICE),
-    "idefics2-8b-chatty (chat)": Idefics2ForConditionalGeneration.from_pretrained(
+    "idefics2-8b-chatty (chat-50)": Idefics2ForConditionalGeneration.from_pretrained(
         "HuggingFaceM4/idefics2-8b-chatty",
         torch_dtype=torch.bfloat16,
         _attn_implementation="flash_attention_2",
         trust_remote_code=True,
         token=os.environ["HF_AUTH_TOKEN"],
+        revision="1d57ffb705199370f7875667cc8f54abd09b2004"
     ).to(DEVICE),
 }
 PROCESSOR = AutoProcessor.from_pretrained(
