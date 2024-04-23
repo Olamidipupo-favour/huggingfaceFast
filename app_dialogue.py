@@ -297,7 +297,8 @@ chatbot = gr.Chatbot(
 
 dope_callback = gr.CSVLogger()
 problematic_callback = gr.CSVLogger()
-hf_writer = gr.HuggingFaceDatasetSaver(HF_WRITE_TOKEN, "HuggingFaceM4/dope-dataset")
+dope_dataset_writer = gr.HuggingFaceDatasetSaver(HF_WRITE_TOKEN, "HuggingFaceM4/dope-dataset")
+problematic_dataset_writer = gr.HuggingFaceDatasetSaver(HF_WRITE_TOKEN, "HuggingFaceM4/problematic-dataset")
 
 # Using Flagging for saving dope and problematic examples
 # Dope examples flagging
@@ -385,7 +386,7 @@ with gr.Blocks(
                 dope_bttn = gr.Button("Dope🔥")
             with gr.Column(scale=1, min_width=50):
                 problematic_bttn = gr.Button("Problematic😬")
-    hf_writer.setup(
+    dope_dataset_writer.setup(
         [
             model_selector,
             chatbot,
@@ -398,7 +399,7 @@ with gr.Blocks(
         "gradio_dope_data_points",
     )
     dope_bttn.click(
-        lambda *args: hf_writer.flag(args),
+        lambda *args: dope_dataset_writer.flag(args),
         [
             model_selector,
             chatbot,
@@ -412,7 +413,7 @@ with gr.Blocks(
         preprocess=False,
     )
     # Problematic examples flagging
-    problematic_callback.setup(
+    problematic_dataset_writer.setup(
         [
             model_selector,
             chatbot,
@@ -425,7 +426,7 @@ with gr.Blocks(
         "gradio_problematic_data_points",
     )
     problematic_bttn.click(
-        lambda *args: problematic_callback.flag(args),
+        lambda *args: problematic_dataset_writer.flag(args),
         [
             model_selector,
             chatbot,
