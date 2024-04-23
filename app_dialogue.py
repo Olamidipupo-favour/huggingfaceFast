@@ -77,6 +77,13 @@ def load_image_from_url(url):
         image = Image.open(image_stream)
         return image
 
+def img_to_bytes(image_path):
+    image = Image.open(image_path)
+    buffer = io.BytesIO()
+    image.save(buffer, format="JPEG")
+    img_bytes = buffer.getvalue()
+    image.close()
+    return img_bytes
 
 def format_user_prompt_with_im_history_and_system_conditioning(
     user_prompt, chat_history
@@ -386,6 +393,7 @@ with gr.Blocks(
                 dope_bttn = gr.Button("Dope🔥")
             with gr.Column(scale=1, min_width=50):
                 problematic_bttn = gr.Button("Problematic😬")
+
     dope_dataset_writer.setup(
         [
             model_selector,
