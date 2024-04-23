@@ -85,57 +85,67 @@ PROCESSOR = AutoProcessor.from_pretrained(
 
 SYSTEM_PROMPT = [
     {
-        "role": "user",
+        "role": "system",
         "content": [
-             {"type": "image", "image": "https://huggingface.co/spaces/HuggingFaceM4/idefics_playground/resolve/main/example_images/kittens-cats-pet-cute-preview.jpg?download=true"},
-             {"type": "text", "text": "Describe this image."},
+             {"type": "text", "text": 
+                "The following is a conversation between a highly knowledgeable and intelligent visual AI assistant, called Assistant, and a human user, called User. In the following interactions, \
+                User and Assistant will converse in natural language, and Assistant will do its best to answer User’s questions. Assistant has the ability to perceive images and reason about the \
+                content of visual inputs. Assistant was built to be respectful, polite and inclusive. It knows a lot, and always tells the truth. When prompted with an image, it does not make up facts."
+            },
         ],
-    },
-    {
-        "role": "assistant",
-        "content": [
-            {"type": "text", "text": "Five kittens are standing together in the center of the photograph. From the left to right, there is one orange kitten, two kittens white and black stripes, and two brown kittens with an orange head. They are in bright green grass and it looks like they are moving forward."},
-        ],
-    },
-    {
-        "role": "user",
-        "content": [
-            {"type": "text", "text": "How about this image?"},
-            {"type": "image", "image": "https://huggingface.co/spaces/HuggingFaceM4/idefics_playground/resolve/main/example_images/puppy.jpg?download=true"},
-            {"type": "text", "text": "Can you describe it too?"},
-        ],
-    },
-    {
-        "role": "assistant",
-        "content": [
-                {"type": "text", "text": "A dog is lying on the floor, looking at the camera. It is looking directly at you. The dog has a white body and brown patches on its face and ears. Its eyes are dark. Its nose is black, and it has long, floppy ears, white paws, long fur, big eyes."},
-        ],
-    },
-    {
-        "role": "user",
-        "content": [
-            {"type": "text", "text": "What can you tell me about this breed of dogs?"},
-        ],
-    },
-    {
-        "role": "assistant",
-        "content": [
-            {"type": "text", "text": "One specific characteristic of the Cavalier King Charles Spaniel is its friendly and affectionate nature. This breed is known for being extremely sociable and forming strong bonds with their owners. They are often described as \"velcro dogs\" because they love to be close to their human companions, whether it's sitting on their laps, cuddling on the couch, or simply following them around the house."},
-        ],
-    },
-    {
-        "role": "user",
-        "content": [
-            {"type": "text", "text": "How many dogs do you see in the following image?"},
-            {"type": "image", "image": "https://huggingface.co/spaces/HuggingFaceM4/idefics_playground/resolve/main/example_images/tennis_tsonga.jpg?download=true"},
-        ],
-    },
-    {
-        "role": "assistant",
-        "content": [
-            {"type": "text", "text": "There are no dogs in this image. The picture shows a tennis player in the midst of a powerful swing."},
-        ],
-    },
+    }
+    # {
+    #     "role": "user",
+    #     "content": [
+    #          {"type": "image", "image": "https://huggingface.co/spaces/HuggingFaceM4/idefics_playground/resolve/main/example_images/kittens-cats-pet-cute-preview.jpg?download=true"},
+    #          {"type": "text", "text": "Describe this image."},
+    #     ],
+    # },
+    # {
+    #     "role": "assistant",
+    #     "content": [
+    #         {"type": "text", "text": "Five kittens are standing together in the center of the photograph. From the left to right, there is one orange kitten, two kittens white and black stripes, and two brown kittens with an orange head. They are in bright green grass and it looks like they are moving forward."},
+    #     ],
+    # },
+    # {
+    #     "role": "user",
+    #     "content": [
+    #         {"type": "text", "text": "How about this image?"},
+    #         {"type": "image", "image": "https://huggingface.co/spaces/HuggingFaceM4/idefics_playground/resolve/main/example_images/puppy.jpg?download=true"},
+    #         {"type": "text", "text": "Can you describe it too?"},
+    #     ],
+    # },
+    # {
+    #     "role": "assistant",
+    #     "content": [
+    #             {"type": "text", "text": "A dog is lying on the floor, looking at the camera. It is looking directly at you. The dog has a white body and brown patches on its face and ears. Its eyes are dark. Its nose is black, and it has long, floppy ears, white paws, long fur, big eyes."},
+    #     ],
+    # },
+    # {
+    #     "role": "user",
+    #     "content": [
+    #         {"type": "text", "text": "What can you tell me about this breed of dogs?"},
+    #     ],
+    # },
+    # {
+    #     "role": "assistant",
+    #     "content": [
+    #         {"type": "text", "text": "One specific characteristic of the Cavalier King Charles Spaniel is its friendly and affectionate nature. This breed is known for being extremely sociable and forming strong bonds with their owners. They are often described as \"velcro dogs\" because they love to be close to their human companions, whether it's sitting on their laps, cuddling on the couch, or simply following them around the house."},
+    #     ],
+    # },
+    # {
+    #     "role": "user",
+    #     "content": [
+    #         {"type": "text", "text": "How many dogs do you see in the following image?"},
+    #         {"type": "image", "image": "https://huggingface.co/spaces/HuggingFaceM4/idefics_playground/resolve/main/example_images/tennis_tsonga.jpg?download=true"},
+    #     ],
+    # },
+    # {
+    #     "role": "assistant",
+    #     "content": [
+    #         {"type": "text", "text": "There are no dogs in this image. The picture shows a tennis player in the midst of a powerful swing."},
+    #     ],
+    # },
 ]
 
 
