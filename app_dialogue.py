@@ -2,7 +2,11 @@ import os
 import subprocess
 
 # Install flash attention
-subprocess.run('pip install flash-attn --no-build-isolation', env={'FLASH_ATTENTION_SKIP_CUDA_BUILD': "TRUE"}, shell=True)
+subprocess.run(
+    "pip install flash-attn --no-build-isolation",
+    env={"FLASH_ATTENTION_SKIP_CUDA_BUILD": "TRUE"},
+    shell=True,
+)
 
 
 import copy
@@ -28,126 +32,32 @@ from transformers import Idefics2ForConditionalGeneration
 
 DEVICE = torch.device("cuda")
 MODELS = {
-    # "idefics2-8b (sft)": Idefics2ForConditionalGeneration.from_pretrained(
-    #     "HuggingFaceM4/idefics2-8b",
-    #     torch_dtype=torch.bfloat16,
-    #     _attn_implementation="flash_attention_2",
-    #     trust_remote_code=True,
-    #     token=os.environ["HF_AUTH_TOKEN"],
-    # ).to(DEVICE),
-    "idefics2-8b-chatty (chat-600)": Idefics2ForConditionalGeneration.from_pretrained(
+    "idefics2-8b-chatty": Idefics2ForConditionalGeneration.from_pretrained(
         "HuggingFaceM4/idefics2-8b-chatty",
         torch_dtype=torch.bfloat16,
         _attn_implementation="flash_attention_2",
         trust_remote_code=True,
         token=os.environ["HF_AUTH_TOKEN"],
-        revision="bb460e58294bcb02430df9fd126b3c522f867d83"
     ).to(DEVICE),
-    # "idefics2-8b-chatty (chat-50)": Idefics2ForConditionalGeneration.from_pretrained(
-    #     "HuggingFaceM4/idefics2-8b-chatty",
-    #     torch_dtype=torch.bfloat16,
-    #     _attn_implementation="flash_attention_2",
-    #     trust_remote_code=True,
-    #     token=os.environ["HF_AUTH_TOKEN"],
-    #     revision="1d57ffb705199370f7875667cc8f54abd09b2004"
-    # ).to(DEVICE),
 }
 PROCESSOR = AutoProcessor.from_pretrained(
     "HuggingFaceM4/idefics2-8b",
     token=os.environ["HF_AUTH_TOKEN"],
 )
 
-# SYSTEM_PROMPT = [ # Deactivating the system propmpt for now, but if I were to reactivate it, I would need to a/ transform turns into dict for applying the chat template, b/ manually overwrite the `default_template` to add the first line (that is not part of any turns), in particular for handling the bos_token.
-# #     """The following is a conversation between a highly knowledgeable and intelligent visual AI assistant, called Assistant, and a human user, called User. In the following interactions, User and Assistant will converse in natural language, and Assistant will do its best to answer User’s questions. Assistant has the ability to perceive images and reason about the content of visual inputs. Assistant was built to be respectful, polite and inclusive. It knows a lot, and always tells the truth. When prompted with an image, it does not make up facts.
-
-# The conversation begins:""",
-#     """\nUser:""",
-#     "https://huggingface.co/spaces/HuggingFaceM4/idefics_playground/resolve/main/example_images/kittens-cats-pet-cute-preview.jpg?download=true",
-#     "Describe this image.<end_of_utterance>",
-#     """\nAssistant: Five kittens are standing together in the center of the photograph. From the left to right, there is one orange kitten, two kittens white and black stripes, and two brown kittens with an orange head. They are in bright green grass and it looks like they are moving forward.<end_of_utterance>""",
-#     "\nUser:How about this image?",
-#     "https://huggingface.co/spaces/HuggingFaceM4/idefics_playground/resolve/main/example_images/puppy.jpg?download=true",
-#     "Can you describe it too?<end_of_utterance>",
-#     """\nAssistant: A dog is lying on the floor, looking at the camera. It is looking directly at you. The dog has a white body and brown patches on its face and ears. Its eyes are dark. Its nose is black, and it has long, floppy ears, white paws, long fur, big eyes.<end_of_utterance>""",
-#     "\nUser: What kind of breed is it?<end_of_utterance>",
-#     """\nAssistant: It looks like a Cavalier King Charles Spaniel. These breeds are known for their gentle, affectionate nature. Their long ears and big, brown eyes give them a sweet, expressive face. Cavaliers are small dogs weighing between 13 and 20 pounds. They have a silky, medium-length coat that comes in various colors, including black and tan, tricolor, red and white, or black.<end_of_utterance>""",
-#     "\nUser: What can you tell me about this breed of dogs?<end_of_utterance>",
-#     """\nAssistant: One specific characteristic of the Cavalier King Charles Spaniel is its friendly and affectionate nature. This breed is known for being extremely sociable and forming strong bonds with their owners. They are often described as "velcro dogs" because they love to be close to their human companions, whether it's sitting on their laps, cuddling on the couch, or simply following them around the house.<end_of_utterance>""",
-#     "\nUser: ghjkhjabnufs<end_of_utterance>",
-#     """\nAssistant: That doesn’t seem to be a word. Could you ask me another way?<end_of_utterance>""",
-#     "\nUser: Do you like Cavalier King Charles Spaniel?<end_of_utterance>",
-#     """\nAssistant: I do not have personal opinions as I’m just a computer program. However, cavaliers are known for being excellent family pets due to their gentle and patient demeanor, making them great with children and other pets. Their affectionate nature also makes them ideal therapy dogs, as they can provide comfort and emotional support to those in need.<end_of_utterance>""",
-#     "\nUser: How many dogs do you see in this image?",
-#     "https://huggingface.co/spaces/HuggingFaceM4/idefics_playground/resolve/main/example_images/tennis_tsonga.jpg?download=true",
-#     "<end_of_utterance>",
-#     """\nAssistant: There is no dogs in this image. The picture shows a tennis player jumping to volley the ball.<end_of_utterance>""",
-# ]
-
 SYSTEM_PROMPT = [
     {
         "role": "system",
         "content": [
-             {"type": "text", "text": 
-                "The following is a conversation between a highly knowledgeable and intelligent visual AI assistant, called Assistant, and a human user, called User. In the following interactions, \
+            {
+                "type": "text",
+                "text": "The following is a conversation between a highly knowledgeable and intelligent visual AI assistant, called Assistant, and a human user, called User. In the following interactions, \
                 User and Assistant will converse in natural language, and Assistant will do its best to answer User’s questions. Assistant has the ability to perceive images and reason about the \
-                content of visual inputs. Assistant was built to be respectful, polite and inclusive. It knows a lot, and always tells the truth. When prompted with an image, it does not make up facts."
+                content of visual inputs. Assistant was built to be respectful, polite and inclusive. It knows a lot, and always tells the truth. When prompted with an image, it does not make up facts.",
             },
         ],
     }
-    # {
-    #     "role": "user",
-    #     "content": [
-    #          {"type": "image", "image": "https://huggingface.co/spaces/HuggingFaceM4/idefics_playground/resolve/main/example_images/kittens-cats-pet-cute-preview.jpg?download=true"},
-    #          {"type": "text", "text": "Describe this image."},
-    #     ],
-    # },
-    # {
-    #     "role": "assistant",
-    #     "content": [
-    #         {"type": "text", "text": "Five kittens are standing together in the center of the photograph. From the left to right, there is one orange kitten, two kittens white and black stripes, and two brown kittens with an orange head. They are in bright green grass and it looks like they are moving forward."},
-    #     ],
-    # },
-    # {
-    #     "role": "user",
-    #     "content": [
-    #         {"type": "text", "text": "How about this image?"},
-    #         {"type": "image", "image": "https://huggingface.co/spaces/HuggingFaceM4/idefics_playground/resolve/main/example_images/puppy.jpg?download=true"},
-    #         {"type": "text", "text": "Can you describe it too?"},
-    #     ],
-    # },
-    # {
-    #     "role": "assistant",
-    #     "content": [
-    #             {"type": "text", "text": "A dog is lying on the floor, looking at the camera. It is looking directly at you. The dog has a white body and brown patches on its face and ears. Its eyes are dark. Its nose is black, and it has long, floppy ears, white paws, long fur, big eyes."},
-    #     ],
-    # },
-    # {
-    #     "role": "user",
-    #     "content": [
-    #         {"type": "text", "text": "What can you tell me about this breed of dogs?"},
-    #     ],
-    # },
-    # {
-    #     "role": "assistant",
-    #     "content": [
-    #         {"type": "text", "text": "One specific characteristic of the Cavalier King Charles Spaniel is its friendly and affectionate nature. This breed is known for being extremely sociable and forming strong bonds with their owners. They are often described as \"velcro dogs\" because they love to be close to their human companions, whether it's sitting on their laps, cuddling on the couch, or simply following them around the house."},
-    #     ],
-    # },
-    # {
-    #     "role": "user",
-    #     "content": [
-    #         {"type": "text", "text": "How many dogs do you see in the following image?"},
-    #         {"type": "image", "image": "https://huggingface.co/spaces/HuggingFaceM4/idefics_playground/resolve/main/example_images/tennis_tsonga.jpg?download=true"},
-    #     ],
-    # },
-    # {
-    #     "role": "assistant",
-    #     "content": [
-    #         {"type": "text", "text": "There are no dogs in this image. The picture shows a tennis player in the midst of a powerful swing."},
-    #     ],
-    # },
 ]
-
 
 API_TOKEN = os.getenv("HF_AUTH_TOKEN")
 # IDEFICS_LOGO = "https://huggingface.co/spaces/HuggingFaceM4/idefics_playground/resolve/main/IDEFICS_logo.png"
@@ -158,12 +68,14 @@ BOT_AVATAR = "IDEFICS_logo.png"
 def turn_is_pure_media(turn):
     return turn[1] is None
 
+
 def load_image_from_url(url):
     with urllib.request.urlopen(url) as response:
         image_data = response.read()
         image_stream = io.BytesIO(image_data)
         image = Image.open(image_stream)
         return image
+
 
 def format_user_prompt_with_im_history_and_system_conditioning(
     user_prompt, chat_history
@@ -182,7 +94,9 @@ def format_user_prompt_with_im_history_and_system_conditioning(
 
     # Format history
     for turn in chat_history:
-        if not resulting_messages or (resulting_messages and resulting_messages[-1]["role"] != "user"):
+        if not resulting_messages or (
+            resulting_messages and resulting_messages[-1]["role"] != "user"
+        ):
             resulting_messages.append(
                 {
                     "role": "user",
@@ -202,9 +116,7 @@ def format_user_prompt_with_im_history_and_system_conditioning(
             resulting_messages.append(
                 {
                     "role": "assistant",
-                    "content": [
-                        {"type": "text", "text": user_utterance.strip()}
-                    ]
+                    "content": [{"type": "text", "text": user_utterance.strip()}],
                 }
             )
 
@@ -213,9 +125,7 @@ def format_user_prompt_with_im_history_and_system_conditioning(
         resulting_messages.append(
             {
                 "role": "user",
-                "content": [
-                    {"type": "text", "text": user_prompt['text']}
-                ],
+                "content": [{"type": "text", "text": user_prompt["text"]}],
             }
         )
     else:
@@ -223,12 +133,11 @@ def format_user_prompt_with_im_history_and_system_conditioning(
         resulting_messages.append(
             {
                 "role": "user",
-                "content": [{"type": "image"}] * len(user_prompt['files']) + [
-                    {"type": "text", "text": user_prompt['text']}
-                ]
+                "content": [{"type": "image"}] * len(user_prompt["files"])
+                + [{"type": "text", "text": user_prompt["text"]}],
             }
         )
-        resulting_images.extend([Image.open(im['path']) for im in user_prompt['files']])
+        resulting_images.extend([Image.open(im["path"]) for im in user_prompt["files"]])
 
     return resulting_messages, resulting_images
 
@@ -266,7 +175,7 @@ def model_inference(
     streamer = TextIteratorStreamer(
         PROCESSOR.tokenizer,
         skip_prompt=True,
-        timeout=5.,
+        timeout=5.0,
     )
 
     # Common parameters to all decoding strategies
@@ -289,13 +198,20 @@ def model_inference(
         generation_args["top_p"] = top_p
 
     # Creating model inputs
-    resulting_text, resulting_images = format_user_prompt_with_im_history_and_system_conditioning(
+    (
+        resulting_text,
+        resulting_images,
+    ) = format_user_prompt_with_im_history_and_system_conditioning(
         user_prompt=user_prompt,
         chat_history=chat_history,
     )
 
     prompt = PROCESSOR.apply_chat_template(resulting_text, add_generation_prompt=True)
-    inputs = PROCESSOR(text=prompt, images=resulting_images if resulting_images else None, return_tensors="pt")
+    inputs = PROCESSOR(
+        text=prompt,
+        images=resulting_images if resulting_images else None,
+        return_tensors="pt",
+    )
     inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
     generation_args.update(inputs)
 
@@ -322,6 +238,7 @@ def model_inference(
         yield acc_text
     print("Success - generated the following text:", acc_text)
     print("-----")
+
 
 # Hyper-parameters for generation
 max_new_tokens = gr.Slider(
@@ -382,19 +299,22 @@ problematic_callback = gr.CSVLogger()
 
 
 # Using Flagging for saving dope and problematic examples
-    # Dope examples flagging
-    
-
-    # gr.Markdown("""## How to use?
-
-    #     There are two ways to provide image inputs:
-    #     - Using the image box on the left panel
-    #     - Using the inline syntax: `text<fake_token_around_image><image:URL_IMAGE><fake_token_around_image>text`
-
-    #     The second syntax allows inputting an arbitrary number of images.""")
+# Dope examples flagging
 
 
-with gr.Blocks(fill_height=True, css=""".gradio-container .avatar-container {height: 40px width: 40px !important;}""") as demo:
+# gr.Markdown("""## How to use?
+
+#     There are two ways to provide image inputs:
+#     - Using the image box on the left panel
+#     - Using the inline syntax: `text<fake_token_around_image><image:URL_IMAGE><fake_token_around_image>text`
+
+#     The second syntax allows inputting an arbitrary number of images.""")
+
+
+with gr.Blocks(
+    fill_height=True,
+    css=""".gradio-container .avatar-container {height: 40px width: 40px !important;}""",
+) as demo:
     # model selector should be set to `visbile=False` ultimately
     with gr.Row(elem_id="model_selector_row"):
         model_selector = gr.Dropdown(
@@ -410,7 +330,13 @@ with gr.Blocks(fill_height=True, css=""".gradio-container .avatar-container {hei
     decoding_strategy.change(
         fn=lambda selection: gr.Slider(
             visible=(
-                selection in ["contrastive_sampling", "beam_sampling", "Top P Sampling", "sampling_top_k"]
+                selection
+                in [
+                    "contrastive_sampling",
+                    "beam_sampling",
+                    "Top P Sampling",
+                    "sampling_top_k",
+                ]
             )
         ),
         inputs=decoding_strategy,
@@ -419,7 +345,13 @@ with gr.Blocks(fill_height=True, css=""".gradio-container .avatar-container {hei
     decoding_strategy.change(
         fn=lambda selection: gr.Slider(
             visible=(
-                selection in ["contrastive_sampling", "beam_sampling", "Top P Sampling", "sampling_top_k"]
+                selection
+                in [
+                    "contrastive_sampling",
+                    "beam_sampling",
+                    "Top P Sampling",
+                    "sampling_top_k",
+                ]
             )
         ),
         inputs=decoding_strategy,
@@ -437,7 +369,14 @@ with gr.Blocks(fill_height=True, css=""".gradio-container .avatar-container {hei
         # examples=[{"text": "hello"}, {"text": "hola"}, {"text": "merhaba"}],
         title="Idefics2 Playground",
         multimodal=True,
-        additional_inputs=[model_selector, decoding_strategy, temperature, max_new_tokens, repetition_penalty, top_p],
+        additional_inputs=[
+            model_selector,
+            decoding_strategy,
+            temperature,
+            max_new_tokens,
+            repetition_penalty,
+            top_p,
+        ],
     )
     with gr.Group():
         with gr.Row():
