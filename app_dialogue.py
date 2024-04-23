@@ -35,14 +35,14 @@ MODELS = {
     #     trust_remote_code=True,
     #     token=os.environ["HF_AUTH_TOKEN"],
     # ).to(DEVICE),
-    "idefics2-8b-chatty (chat-600)": Idefics2ForConditionalGeneration.from_pretrained(
-        "HuggingFaceM4/idefics2-8b-chatty",
-        torch_dtype=torch.bfloat16,
-        _attn_implementation="flash_attention_2",
-        trust_remote_code=True,
-        token=os.environ["HF_AUTH_TOKEN"],
-        revision="bb460e58294bcb02430df9fd126b3c522f867d83"
-    ).to(DEVICE),
+    # "idefics2-8b-chatty (chat-600)": Idefics2ForConditionalGeneration.from_pretrained(
+    #     "HuggingFaceM4/idefics2-8b-chatty",
+    #     torch_dtype=torch.bfloat16,
+    #     _attn_implementation="flash_attention_2",
+    #     trust_remote_code=True,
+    #     token=os.environ["HF_AUTH_TOKEN"],
+    #     revision="bb460e58294bcb02430df9fd126b3c522f867d83"
+    # ).to(DEVICE),
     "idefics2-8b-chatty (chat-50)": Idefics2ForConditionalGeneration.from_pretrained(
         "HuggingFaceM4/idefics2-8b-chatty",
         torch_dtype=torch.bfloat16,
