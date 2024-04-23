@@ -60,6 +60,7 @@ SYSTEM_PROMPT = [
 ]
 
 API_TOKEN = os.getenv("HF_AUTH_TOKEN")
+HF_WRITE_TOKEN = os.getenv("HF_WRITE_TOKEN")
 # IDEFICS_LOGO = "https://huggingface.co/spaces/HuggingFaceM4/idefics_playground/resolve/main/IDEFICS_logo.png"
 BOT_AVATAR = "IDEFICS_logo.png"
 
@@ -296,7 +297,7 @@ chatbot = gr.Chatbot(
 
 dope_callback = gr.CSVLogger()
 problematic_callback = gr.CSVLogger()
-
+hf_writer = gr.HuggingFaceDatasetSaver(HF_WRITE_TOKEN, "image-classification-mistakes")
 
 # Using Flagging for saving dope and problematic examples
 # Dope examples flagging
@@ -384,7 +385,7 @@ with gr.Blocks(
                 dope_bttn = gr.Button("Dope🔥")
             with gr.Column(scale=1, min_width=50):
                 problematic_bttn = gr.Button("Problematic😬")
-    dope_callback.setup(
+    hf_writer.setup(
         [
             model_selector,
             chatbot,
@@ -397,7 +398,7 @@ with gr.Blocks(
         "gradio_dope_data_points",
     )
     dope_bttn.click(
-        lambda *args: dope_callback.flag(args),
+        lambda *args: hf_writer.flag(args),
         [
             model_selector,
             chatbot,
