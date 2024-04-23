@@ -297,7 +297,7 @@ chatbot = gr.Chatbot(
 
 dope_callback = gr.CSVLogger()
 problematic_callback = gr.CSVLogger()
-hf_writer = gr.HuggingFaceDatasetSaver(HF_WRITE_TOKEN, "image-classification-mistakes")
+hf_writer = gr.HuggingFaceDatasetSaver(HF_WRITE_TOKEN, "HuggingFaceM4/dope-dataset")
 
 # Using Flagging for saving dope and problematic examples
 # Dope examples flagging
