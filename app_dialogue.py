@@ -35,22 +35,22 @@ MODELS = {
     #     trust_remote_code=True,
     #     token=os.environ["HF_AUTH_TOKEN"],
     # ).to(DEVICE),
-    # "idefics2-8b-chatty (chat-600)": Idefics2ForConditionalGeneration.from_pretrained(
-    #     "HuggingFaceM4/idefics2-8b-chatty",
-    #     torch_dtype=torch.bfloat16,
-    #     _attn_implementation="flash_attention_2",
-    #     trust_remote_code=True,
-    #     token=os.environ["HF_AUTH_TOKEN"],
-    #     revision="bb460e58294bcb02430df9fd126b3c522f867d83"
-    # ).to(DEVICE),
-    "idefics2-8b-chatty (chat-50)": Idefics2ForConditionalGeneration.from_pretrained(
+    "idefics2-8b-chatty (chat-600)": Idefics2ForConditionalGeneration.from_pretrained(
         "HuggingFaceM4/idefics2-8b-chatty",
         torch_dtype=torch.bfloat16,
         _attn_implementation="flash_attention_2",
         trust_remote_code=True,
         token=os.environ["HF_AUTH_TOKEN"],
-        revision="1d57ffb705199370f7875667cc8f54abd09b2004"
+        revision="bb460e58294bcb02430df9fd126b3c522f867d83"
     ).to(DEVICE),
+    # "idefics2-8b-chatty (chat-50)": Idefics2ForConditionalGeneration.from_pretrained(
+    #     "HuggingFaceM4/idefics2-8b-chatty",
+    #     torch_dtype=torch.bfloat16,
+    #     _attn_implementation="flash_attention_2",
+    #     trust_remote_code=True,
+    #     token=os.environ["HF_AUTH_TOKEN"],
+    #     revision="1d57ffb705199370f7875667cc8f54abd09b2004"
+    # ).to(DEVICE),
 }
 PROCESSOR = AutoProcessor.from_pretrained(
     "HuggingFaceM4/idefics2-8b",
