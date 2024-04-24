@@ -436,7 +436,7 @@ with gr.Blocks(
         [
             model_selector,
             image_fake,
-            text_fake,
+            chatbot,
             decoding_strategy,
             temperature,
             max_new_tokens,
@@ -464,7 +464,7 @@ with gr.Blocks(
         [
             model_selector,
             image_fake,
-            text_fake,
+            chatbot,
             decoding_strategy,
             temperature,
             max_new_tokens,
