@@ -257,7 +257,7 @@ def flag_chat(
     top_p,
 ):
     images = []
-    conversations = []
+    text_flag = []
     prev_ex_is_image = False
     for ex in chat_history:
         if isinstance(ex[0], dict):
@@ -265,16 +265,16 @@ def flag_chat(
             prev_ex_is_image = True
         else:
             if prev_ex_is_image:
-                conversations.append([f"User:<image>{ex[0]}", f"Assistant:{ex[1]}"])
+                text_flag.append([f"User:<image>{ex[0]}", f"Assistant:{ex[1]}"])
             else:
-                conversations.append([f"User:{ex[0]}", f"Assistant:{ex[1]}"])
+                text_flag.append([f"User:{ex[0]}", f"Assistant:{ex[1]}"])
             prev_ex_is_image = False
-
+    image_flag = images[0]
     dope_dataset_writer.flag(
         flag_data=[
             model_selector,
             images[0],
-            conversations,
+            text_flag,
             decoding_strategy,
             temperature,
             max_new_tokens,
@@ -356,8 +356,8 @@ problematic_dataset_writer = gr.HuggingFaceDatasetSaver(
 
 #     The second syntax allows inputting an arbitrary number of images.""")
 
-image_fake = gr.Image(visible=False)
-text_fake = gr.Textbox(visible=False)
+image_flag = gr.Image(visible=False)
+text_flag = gr.Textbox(visible=False)
 with gr.Blocks(
     fill_height=True,
     css=""".gradio-container .avatar-container {height: 40px width: 40px !important;}""",
@@ -435,8 +435,8 @@ with gr.Blocks(
     dope_dataset_writer.setup(
         [
             model_selector,
-            image_fake,
-            chatbot,
+            image_flag,
+            text_flag,
             decoding_strategy,
             temperature,
             max_new_tokens,
@@ -463,8 +463,8 @@ with gr.Blocks(
     problematic_dataset_writer.setup(
         [
             model_selector,
-            image_fake,
-            chatbot,
+            image_flag,
+            text_flag,
             decoding_strategy,
             temperature,
             max_new_tokens,
