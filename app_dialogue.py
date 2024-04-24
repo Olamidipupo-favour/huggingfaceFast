@@ -255,6 +255,7 @@ def flag_chat(
     max_new_tokens,
     repetition_penalty,
     top_p,
+    dope, 
 ):
     images = []
     text_flag = []
@@ -270,18 +271,32 @@ def flag_chat(
                 text_flag.append([f"User:{ex[0]}", f"Assistant:{ex[1]}"])
             prev_ex_is_image = False
     image_flag = images[0]
-    dope_dataset_writer.flag(
-        flag_data=[
-            model_selector,
-            images[0],
-            text_flag,
-            decoding_strategy,
-            temperature,
-            max_new_tokens,
-            repetition_penalty,
-            top_p,
-        ]
-    )
+    if dope:
+        dope_dataset_writer.flag(
+            flag_data=[
+                model_selector,
+                image_flag,
+                text_flag,
+                decoding_strategy,
+                temperature,
+                max_new_tokens,
+                repetition_penalty,
+                top_p,
+            ]
+        )
+    else:
+        problematic_dataset_writer.flag(
+            flag_data=[
+                model_selector,
+                image_flag,
+                text_flag,
+                decoding_strategy,
+                temperature,
+                max_new_tokens,
+                repetition_penalty,
+                top_p,
+            ]
+        )
 
 
 # Hyper-parameters for generation
@@ -470,6 +485,7 @@ with gr.Blocks(
             max_new_tokens,
             repetition_penalty,
             top_p,
+            True,
         ],
         "gradio_problematic_data_points",
     )
@@ -483,6 +499,7 @@ with gr.Blocks(
             max_new_tokens,
             repetition_penalty,
             top_p,
+            False,
         ],
         outputs=None,
         preprocess=False,
