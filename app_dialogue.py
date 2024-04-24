@@ -470,6 +470,7 @@ with gr.Blocks(
             max_new_tokens,
             repetition_penalty,
             top_p,
+            True,
         ],
         outputs=None,
         preprocess=False,
@@ -485,7 +486,6 @@ with gr.Blocks(
             max_new_tokens,
             repetition_penalty,
             top_p,
-            True,
         ],
         "gradio_problematic_data_points",
     )
