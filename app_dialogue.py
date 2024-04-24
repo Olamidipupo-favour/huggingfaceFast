@@ -247,7 +247,7 @@ def model_inference(
     print("-----")
 
 
-def flag_chat(
+def flag_dope(
     model_selector,
     chat_history,
     decoding_strategy,
@@ -255,48 +255,55 @@ def flag_chat(
     max_new_tokens,
     repetition_penalty,
     top_p,
-    dope, 
 ):
     images = []
-    text_flag = []
-    prev_ex_is_image = False
     for ex in chat_history:
         if isinstance(ex[0], dict):
             images.append(ex[0]["file"])
             prev_ex_is_image = True
-        else:
-            if prev_ex_is_image:
-                text_flag.append([f"User:<image>{ex[0]}", f"Assistant:{ex[1]}"])
-            else:
-                text_flag.append([f"User:{ex[0]}", f"Assistant:{ex[1]}"])
-            prev_ex_is_image = False
+
     image_flag = images[0]
-    if dope:
-        dope_dataset_writer.flag(
-            flag_data=[
-                model_selector,
-                image_flag,
-                text_flag,
-                decoding_strategy,
-                temperature,
-                max_new_tokens,
-                repetition_penalty,
-                top_p,
-            ]
-        )
-    else:
-        problematic_dataset_writer.flag(
-            flag_data=[
-                model_selector,
-                image_flag,
-                text_flag,
-                decoding_strategy,
-                temperature,
-                max_new_tokens,
-                repetition_penalty,
-                top_p,
-            ]
-        )
+    dope_dataset_writer.flag(
+        flag_data=[
+            model_selector,
+            image_flag,
+            chat_history,
+            decoding_strategy,
+            temperature,
+            max_new_tokens,
+            repetition_penalty,
+            top_p,
+        ]
+    )
+
+
+def flag_problematic(
+    model_selector,
+    chat_history,
+    decoding_strategy,
+    temperature,
+    max_new_tokens,
+    repetition_penalty,
+    top_p,
+):
+    images = []
+    for ex in chat_history:
+        if isinstance(ex[0], dict):
+            images.append(ex[0]["file"])
+
+    image_flag = images[0]
+    problematic_dataset_writer.flag(
+        flag_data=[
+            model_selector,
+            image_flag,
+            chat_history,
+            decoding_strategy,
+            temperature,
+            max_new_tokens,
+            repetition_penalty,
+            top_p,
+        ]
+    )
 
 
 # Hyper-parameters for generation
@@ -372,7 +379,6 @@ problematic_dataset_writer = gr.HuggingFaceDatasetSaver(
 #     The second syntax allows inputting an arbitrary number of images.""")
 
 image_flag = gr.Image(visible=False)
-text_flag = gr.Textbox(visible=False)
 with gr.Blocks(
     fill_height=True,
     css=""".gradio-container .avatar-container {height: 40px width: 40px !important;}""",
@@ -451,7 +457,7 @@ with gr.Blocks(
         [
             model_selector,
             image_flag,
-            text_flag,
+            chatbot,
             decoding_strategy,
             temperature,
             max_new_tokens,
@@ -461,7 +467,7 @@ with gr.Blocks(
         "gradio_dope_data_points",
     )
     dope_bttn.click(
-        fn=flag_chat,
+        fn=flag_dope,
         inputs=[
             model_selector,
             chatbot,
@@ -470,7 +476,6 @@ with gr.Blocks(
             max_new_tokens,
             repetition_penalty,
             top_p,
-            True,
         ],
         outputs=None,
         preprocess=False,
@@ -480,7 +485,7 @@ with gr.Blocks(
         [
             model_selector,
             image_flag,
-            text_flag,
+            chatbot,
             decoding_strategy,
             temperature,
             max_new_tokens,
@@ -490,7 +495,7 @@ with gr.Blocks(
         "gradio_problematic_data_points",
     )
     problematic_bttn.click(
-        fn=flag_chat,
+        fn=flag_problematic,
         inputs=[
             model_selector,
             chatbot,
@@ -499,7 +504,6 @@ with gr.Blocks(
             max_new_tokens,
             repetition_penalty,
             top_p,
-            False,
         ],
         outputs=None,
         preprocess=False,
