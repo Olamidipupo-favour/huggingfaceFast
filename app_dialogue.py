@@ -268,13 +268,11 @@ def flag_chat(
             prev_ex_is_image = True
         else:
             if prev_ex_is_image:
-                conversations.append([f"User:<image>{ex[0]}", f"\nAssistant:{ex[1]}"])
+                conversations.append([f"User:<image>{ex[0]}", f"Assistant:{ex[1]}"])
             else:
-                conversations.append([f"User:{ex[0]}", f"\nAssistant:{ex[1]}"])
+                conversations.append([f"User:{ex[0]}", f"Assistant:{ex[1]}"])
             prev_ex_is_image = False
 
-    print(f"conversations: {conversations}\n dtype:{type(conversations)}")
-    print(f"chat_history: {chat_history}\n dtype: {type(chat_history)}")
     dope_dataset_writer.flag(
         flag_data=[
             model_selector,
@@ -362,7 +360,7 @@ problematic_dataset_writer = gr.HuggingFaceDatasetSaver(
 #     The second syntax allows inputting an arbitrary number of images.""")
 
 image_fake = gr.Image(visible=False)
-
+text_fake = gr.Textbox(visible=False)
 with gr.Blocks(
     fill_height=True,
     css=""".gradio-container .avatar-container {height: 40px width: 40px !important;}""",
@@ -441,7 +439,7 @@ with gr.Blocks(
         [
             model_selector,
             image_fake,
-            chatbot,
+            text_fake,
             decoding_strategy,
             temperature,
             max_new_tokens,
@@ -469,7 +467,7 @@ with gr.Blocks(
         [
             model_selector,
             image_fake,
-            chatbot,
+            text_fake,
             decoding_strategy,
             temperature,
             max_new_tokens,
