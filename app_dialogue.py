@@ -77,6 +77,7 @@ def load_image_from_url(url):
         image = Image.open(image_stream)
         return image
 
+
 def img_to_bytes(image_path):
     image = Image.open(image_path)
     buffer = io.BytesIO()
@@ -84,6 +85,7 @@ def img_to_bytes(image_path):
     img_bytes = buffer.getvalue()
     image.close()
     return img_bytes
+
 
 def format_user_prompt_with_im_history_and_system_conditioning(
     user_prompt, chat_history
@@ -248,6 +250,37 @@ def model_inference(
     print("-----")
 
 
+def flag_chat(
+    model_selector,
+    chat_history,
+    decoding_strategy,
+    temperature,
+    max_new_tokens,
+    repetition_penalty,
+    top_p,
+):
+    images = []
+    conversations = []
+    for ex in chat_history:
+        if isinstance(ex[0], dict):
+            images.append(ex[0]["file"])
+            conversations.append([f"User: <image>"])
+        else:
+            conversations.append([f"User:{ex[0]}", f"\nAssistant:{ex[1]}"])
+    dope_dataset_writer.flag(
+        flag_data=[
+            model_selector,
+            images[0],
+            conversations,
+            decoding_strategy,
+            temperature,
+            max_new_tokens,
+            repetition_penalty,
+            top_p,
+        ]
+    )
+
+
 # Hyper-parameters for generation
 max_new_tokens = gr.Slider(
     minimum=8,
@@ -302,11 +335,12 @@ chatbot = gr.Chatbot(
     height=450,
 )
 
-dope_callback = gr.CSVLogger()
-problematic_callback = gr.CSVLogger()
-dope_dataset_writer = gr.HuggingFaceDatasetSaver(HF_WRITE_TOKEN, "HuggingFaceM4/dope-dataset")
-problematic_dataset_writer = gr.HuggingFaceDatasetSaver(HF_WRITE_TOKEN, "HuggingFaceM4/problematic-dataset")
-
+dope_dataset_writer = gr.HuggingFaceDatasetSaver(
+    HF_WRITE_TOKEN, "HuggingFaceM4/dope-dataset", private=True
+)
+problematic_dataset_writer = gr.HuggingFaceDatasetSaver(
+    HF_WRITE_TOKEN, "HuggingFaceM4/problematic-dataset", private=True
+)
 # Using Flagging for saving dope and problematic examples
 # Dope examples flagging
 
@@ -319,6 +353,8 @@ problematic_dataset_writer = gr.HuggingFaceDatasetSaver(HF_WRITE_TOKEN, "Hugging
 
 #     The second syntax allows inputting an arbitrary number of images.""")
 
+image_fake = gr.Image(visible=False)
+text_fake = gr.Textbox(visible=False)
 
 with gr.Blocks(
     fill_height=True,
@@ -397,7 +433,8 @@ with gr.Blocks(
     dope_dataset_writer.setup(
         [
             model_selector,
-            chatbot,
+            image_fake,
+            text_fake,
             decoding_strategy,
             temperature,
             max_new_tokens,
@@ -407,8 +444,8 @@ with gr.Blocks(
         "gradio_dope_data_points",
     )
     dope_bttn.click(
-        lambda *args: dope_dataset_writer.flag(args),
-        [
+        fn=flag_chat,
+        inputs=[
             model_selector,
             chatbot,
             decoding_strategy,
@@ -417,14 +454,15 @@ with gr.Blocks(
             repetition_penalty,
             top_p,
         ],
-        None,
+        outputs=None,
         preprocess=False,
     )
     # Problematic examples flagging
     problematic_dataset_writer.setup(
         [
             model_selector,
-            chatbot,
+            image_fake,
+            text_fake,
             decoding_strategy,
             temperature,
             max_new_tokens,
@@ -434,8 +472,8 @@ with gr.Blocks(
         "gradio_problematic_data_points",
     )
     problematic_bttn.click(
-        lambda *args: problematic_dataset_writer.flag(args),
-        [
+        fn=flag_chat,
+        inputs=[
             model_selector,
             chatbot,
             decoding_strategy,
@@ -444,7 +482,7 @@ with gr.Blocks(
             repetition_penalty,
             top_p,
         ],
-        None,
+        outputs=None,
         preprocess=False,
     )
 
