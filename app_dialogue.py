@@ -145,7 +145,7 @@ def format_user_prompt_with_im_history_and_system_conditioning(
                 + [{"type": "text", "text": user_prompt["text"]}],
             }
         )
-        resulting_images.extend([Image.open(im["path"]) for im in user_prompt["files"]])
+        resulting_images.extend([Image.open(path) for path in user_prompt["files"]])
 
     return resulting_messages, resulting_images
 
@@ -175,10 +175,6 @@ def model_inference(
 
     if user_prompt["text"].strip() == "" and user_prompt["files"]:
         gr.Error("Please input a text query along the image(s).")
-
-    for file in user_prompt["files"]:
-        if not file["mime_type"].startswith("image/"):
-            gr.Error("Idefics2 only supports images. Please input a valid image.")
 
     streamer = TextIteratorStreamer(
         PROCESSOR.tokenizer,
