@@ -1,4 +1,4 @@
-git+https://github.com/huggingface/transformers.git@6b78360e6d686b316360334f5109b46c39ff5ed8
+transformers==4.40.0
 datasets
 pillow
 numpy
