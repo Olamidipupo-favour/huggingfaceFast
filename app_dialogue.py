@@ -258,7 +258,12 @@ def flag_dope(
             images.append(ex[0]["file"])
             prev_ex_is_image = True
 
-    image_flag = images[0]
+    if len(images)== 0:
+        black_image = Image.new('RGB', (20, 20), (0, 0, 0))
+        black_image.save("/tmp/gradio/fake_image.png")
+        image_flag = {'path': "/tmp/gradio/fake_image.png", 'size': None, 'orig_name': None, 'mime_type': 'image/png', 'is_stream': False, 'meta': {'_type': 'gradio.FileData'}}
+    else:
+        image_flag = images[0]
     dope_dataset_writer.flag(
         flag_data=[
             model_selector,
@@ -287,7 +292,12 @@ def flag_problematic(
         if isinstance(ex[0], dict):
             images.append(ex[0]["file"])
 
-    image_flag = images[0]
+    if len(images)== 0:
+        black_image = Image.new('RGB', (20, 20), (0, 0, 0))
+        black_image.save("/tmp/gradio/fake_image.png")
+        image_flag = {'path': "/tmp/gradio/fake_image.png", 'size': None, 'orig_name': None, 'mime_type': 'image/png', 'is_stream': False, 'meta': {'_type': 'gradio.FileData'}}
+    else:
+        image_flag = images[0]
     problematic_dataset_writer.flag(
         flag_data=[
             model_selector,
