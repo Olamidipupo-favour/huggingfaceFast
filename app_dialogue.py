@@ -77,7 +77,7 @@ def load_image_from_url(url):
 
 
 def img_to_bytes(image_path):
-    image = Image.open(image_path)
+    image = Image.open(image_path).convert(mode='RGB')
     buffer = io.BytesIO()
     image.save(buffer, format="JPEG")
     img_bytes = buffer.getvalue()
@@ -253,29 +253,31 @@ def flag_dope(
     top_p,
 ):
     images = []
+    conversation = []
     for ex in chat_history:
         if isinstance(ex[0], dict):
-            images.append(ex[0]["file"])
-            prev_ex_is_image = True
-
-    if len(images)== 0:
-        black_image = Image.new('RGB', (20, 20), (0, 0, 0))
-        black_image.save("/tmp/gradio/fake_image.png")
-        image_flag = {'path': "/tmp/gradio/fake_image.png", 'size': None, 'orig_name': None, 'mime_type': 'image/png', 'is_stream': False, 'meta': {'_type': 'gradio.FileData'}}
-    else:
-        image_flag = images[0]
-    dope_dataset_writer.flag(
-        flag_data=[
-            model_selector,
-            image_flag,
-            chat_history,
-            decoding_strategy,
-            temperature,
-            max_new_tokens,
-            repetition_penalty,
-            top_p,
-        ]
-    )
+            images.append(img_to_bytes(ex[0]["file"]["path"]))
+        else:
+            
+            conversation.append({"User": ex[0], "Assistant": ex[1]})
+            
+    data = {
+        "model_selector": [model_selector],
+        "images": [images],
+        "conversation": [conversation],
+        "decoding_strategy": [decoding_strategy],
+        "temperature": [temperature],
+        "max_new_tokens": [max_new_tokens],
+        "repetition_penalty": [repetition_penalty],
+        "top_p": [top_p],
+    }
+    try:
+        ds = datasets.load_dataset("HuggingFaceM4/problematic-dataset-red-teaming", split="train", token=HF_WRITE_TOKEN)
+        new_data = datasets.Dataset.from_dict(data, features=FEATURES)
+        hf_dataset = datasets.concatenate_datasets([ds,new_data])
+    except Exception:
+        hf_dataset = datasets.Dataset.from_dict(data, features=FEATURES)
+    hf_dataset.push_to_hub( "HuggingFaceM4/problematic-dataset-red-teaming", split="train", token=HF_WRITE_TOKEN, private=True)
 
 
 def flag_problematic(
@@ -288,28 +290,31 @@ def flag_problematic(
     top_p,
 ):
     images = []
+    conversation = []
     for ex in chat_history:
         if isinstance(ex[0], dict):
-            images.append(ex[0]["file"])
-
-    if len(images)== 0:
-        black_image = Image.new('RGB', (20, 20), (0, 0, 0))
-        black_image.save("/tmp/gradio/fake_image.png")
-        image_flag = {'path': "/tmp/gradio/fake_image.png", 'size': None, 'orig_name': None, 'mime_type': 'image/png', 'is_stream': False, 'meta': {'_type': 'gradio.FileData'}}
-    else:
-        image_flag = images[0]
-    problematic_dataset_writer.flag(
-        flag_data=[
-            model_selector,
-            image_flag,
-            chat_history,
-            decoding_strategy,
-            temperature,
-            max_new_tokens,
-            repetition_penalty,
-            top_p,
-        ]
-    )
+            images.append(img_to_bytes(ex[0]["file"]["path"]))
+        else:
+            
+            conversation.append({"User": ex[0], "Assistant": ex[1]})
+            
+    data = {
+        "model_selector": [model_selector],
+        "images": [images],
+        "conversation": [conversation],
+        "decoding_strategy": [decoding_strategy],
+        "temperature": [temperature],
+        "max_new_tokens": [max_new_tokens],
+        "repetition_penalty": [repetition_penalty],
+        "top_p": [top_p],
+    }
+    try:
+        ds = datasets.load_dataset("HuggingFaceM4/problematic-dataset-red-teaming", split="train", token=HF_WRITE_TOKEN)
+        new_data = datasets.Dataset.from_dict(data, features=FEATURES)
+        hf_dataset = datasets.concatenate_datasets([ds,new_data])
+    except Exception:
+        hf_dataset = datasets.Dataset.from_dict(data, features=FEATURES)
+    hf_dataset.push_to_hub( "HuggingFaceM4/problematic-dataset-red-teaming", split="train", token=HF_WRITE_TOKEN, private=True)
 
 
 # Hyper-parameters for generation
@@ -368,12 +373,6 @@ chatbot = gr.Chatbot(
     height=450,
 )
 
-dope_dataset_writer = gr.HuggingFaceDatasetSaver(
-    HF_WRITE_TOKEN, "HuggingFaceM4/dope-dataset", private=True
-)
-problematic_dataset_writer = gr.HuggingFaceDatasetSaver(
-    HF_WRITE_TOKEN, "HuggingFaceM4/problematic-dataset", private=True
-)
 # Using Flagging for saving dope and problematic examples
 # Dope examples flagging
 
@@ -460,20 +459,6 @@ with gr.Blocks(
                 dope_bttn = gr.Button("Dope🔥")
             with gr.Column(scale=1, min_width=50):
                 problematic_bttn = gr.Button("Problematic😬")
-
-    dope_dataset_writer.setup(
-        [
-            model_selector,
-            image_flag,
-            chatbot,
-            decoding_strategy,
-            temperature,
-            max_new_tokens,
-            repetition_penalty,
-            top_p,
-        ],
-        "gradio_dope_data_points",
-    )
     dope_bttn.click(
         fn=flag_dope,
         inputs=[
@@ -487,20 +472,6 @@ with gr.Blocks(
         ],
         outputs=None,
         preprocess=False,
-    )
-    # Problematic examples flagging
-    problematic_dataset_writer.setup(
-        [
-            model_selector,
-            image_flag,
-            chatbot,
-            decoding_strategy,
-            temperature,
-            max_new_tokens,
-            repetition_penalty,
-            top_p,
-        ],
-        "gradio_problematic_data_points",
     )
     problematic_bttn.click(
         fn=flag_problematic,
