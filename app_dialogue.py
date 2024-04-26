@@ -243,6 +243,19 @@ def model_inference(
     print("-----")
 
 
+FEATURES = datasets.Features(
+    {
+        "model_selector": datasets.Value("string"),
+        "images": datasets.Sequence(datasets.Image(decode=True)),
+        "conversation": datasets.Sequence({"User": datasets.Value("string"), "Assistant": datasets.Value("string")}),
+        "decoding_strategy": datasets.Value("string"),
+        "temperature": datasets.Value("float32"),
+        "max_new_tokens": datasets.Value("int32"),
+        "repetition_penalty": datasets.Value("float32"),
+        "top_p": datasets.Value("int32"),
+        }
+    )
+
 def flag_dope(
     model_selector,
     chat_history,
