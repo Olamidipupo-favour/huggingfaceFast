@@ -285,12 +285,12 @@ def flag_dope(
         "top_p": [top_p],
     }
     try:
-        ds = datasets.load_dataset("HuggingFaceM4/problematic-dataset-red-teaming", split="train", token=HF_WRITE_TOKEN)
+        ds = datasets.load_dataset("HuggingFaceM4/dope-dataset-red-teaming", split="train", token=HF_WRITE_TOKEN)
         new_data = datasets.Dataset.from_dict(data, features=FEATURES)
         hf_dataset = datasets.concatenate_datasets([ds,new_data])
     except Exception:
         hf_dataset = datasets.Dataset.from_dict(data, features=FEATURES)
-    hf_dataset.push_to_hub( "HuggingFaceM4/problematic-dataset-red-teaming", split="train", token=HF_WRITE_TOKEN, private=True)
+    hf_dataset.push_to_hub( "HuggingFaceM4/dope-dataset-red-teaming", split="train", token=HF_WRITE_TOKEN, private=True)
 
 
 def flag_problematic(
