@@ -56,6 +56,41 @@ SYSTEM_PROMPT = [
         ],
     }
 ]
+examples_path = os.path.dirname(__file__)
+EXAMPLES = [
+    [
+        {
+            "text": "Describe the image",
+            "files": [f"{examples_path}/example_images/plant_bulb.webp"],
+        }
+    ],
+    [
+        {
+            "text": "Describe the image",
+            "files": [f"{examples_path}/example_images/pope_doudoune.webp"],
+        }
+    ],
+    [
+        {
+            "text": "Describe the image",
+            "files": [
+                f"{examples_path}/example_images/kittens-cats-pet-cute-preview.jpg"
+            ],
+        }
+    ],
+    [
+        {
+            "text": "Describe the image",
+            "files": [f"{examples_path}/example_images/baguettes_guarding_paris.png"],
+        }
+    ],
+    [
+        {
+            "text": "Describe the image",
+            "files": [f"{examples_path}/example_images/dragons_playing.png"],
+        }
+    ],
+]
 
 API_TOKEN = os.getenv("HF_AUTH_TOKEN")
 HF_WRITE_TOKEN = os.getenv("HF_WRITE_TOKEN")
@@ -454,7 +489,7 @@ with gr.Blocks(
     gr.ChatInterface(
         fn=model_inference,
         chatbot=chatbot,
-        # examples=[{"text": "hello"}, {"text": "hola"}, {"text": "merhaba"}],
+        examples=EXAMPLES,
         title="Idefics2 Playground",
         multimodal=True,
         additional_inputs=[
