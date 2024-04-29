@@ -3,3 +3,4 @@ datasets
 pillow
 numpy
 torch
+flash-attn
