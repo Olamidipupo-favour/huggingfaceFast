@@ -90,6 +90,12 @@ EXAMPLES = [
             "files": [f"{examples_path}/example_images/dragons_playing.png"],
         }
     ],
+    [
+        {
+            "text": "Read what's written on the paper",
+            "files": [f"{examples_path}/example_images/paper_with_text.png"],
+        }
+    ],
 ]
 
 API_TOKEN = os.getenv("HF_AUTH_TOKEN")
