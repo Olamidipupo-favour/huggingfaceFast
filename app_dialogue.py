@@ -17,13 +17,9 @@ import torch
 from threading import Thread
 from typing import List, Dict, Union
 import urllib
-from urllib.parse import urlparse
 from PIL import Image
 import io
-import pandas as pd
 import datasets
-import json
-import requests
 
 import gradio as gr
 from transformers import AutoProcessor, TextIteratorStreamer
@@ -81,7 +77,7 @@ EXAMPLES = [
     ],
     [
         {
-            "text": "Why is this image cute",
+            "text": "Why is this image cute?",
             "files": [
                 f"{examples_path}/example_images/kittens-cats-pet-cute-preview.jpg"
             ],
@@ -121,6 +117,30 @@ EXAMPLES = [
         {
             "text": "Give an art-critic description of this well known painting",
             "files": [f"{examples_path}/example_images/Van-Gogh-Starry-Night.jpg"],
+        }
+    ],
+    [
+        {
+            "text": "Describe this image in detail and explain why it is disturbing.",
+            "files": [f"{examples_path}/example_images/cat_cloud.jpeg"],
+        }
+    ],
+    [
+        {
+            "text": "Why is that image comical?",
+            "files": [f"{examples_path}/example_images/eye_glasses.jpeg"],
+        }
+    ],
+    [
+        {
+            "text": "Write an online add for that product.",
+            "files": [f"{examples_path}/example_images/shampoo.jpg"],
+        }
+    ],
+    [
+        {
+            "text": "The respective main characters of these two movies meet in real life. Imagine their discussion. It should be sassy, and the beginning of a mysterious adventure.",
+            "files": [f"{examples_path}/example_images/barbie.jpeg", f"{examples_path}/example_images/oppenheimer.jpeg"],
         }
     ],
 ]
@@ -339,9 +359,9 @@ def flag_dope(
         if isinstance(ex[0], dict):
             images.append(img_to_bytes(ex[0]["file"]["path"]))
         else:
-            
+
             conversation.append({"User": ex[0], "Assistant": ex[1]})
-            
+
     data = {
         "model_selector": [model_selector],
         "images": [images],
@@ -376,9 +396,9 @@ def flag_problematic(
         if isinstance(ex[0], dict):
             images.append(img_to_bytes(ex[0]["file"]["path"]))
         else:
-            
+
             conversation.append({"User": ex[0], "Assistant": ex[1]})
-            
+
     data = {
         "model_selector": [model_selector],
         "images": [images],
@@ -475,7 +495,7 @@ with gr.Blocks(
     gr.Markdown("# 🐶 Idefics2-Chatty Playground 🐶")
     gr.Markdown("In this demo you'll be able to chat with [Idefics2-8B-chatty](https://huggingface.co/HuggingFaceM4/idefics2-8b-chatty), a variant of [Idefics2-8B](https://huggingface.co/HuggingFaceM4/idefics2-8b-chatty) further fine-tuned on chat datasets")
     gr.Markdown("If you want to learn more about Idefics2 and its variants, you can check our [blog post](https://huggingface.co/blog/idefics2).")
-    
+
     # model selector should be set to `visbile=False` ultimately
     with gr.Row(elem_id="model_selector_row"):
         model_selector = gr.Dropdown(
@@ -487,7 +507,7 @@ with gr.Blocks(
             label="Model",
             visible=False,
         )
-    
+
     decoding_strategy.change(
         fn=lambda selection: gr.Slider(
             visible=(
@@ -502,21 +522,6 @@ with gr.Blocks(
         ),
         inputs=decoding_strategy,
         outputs=temperature,
-    )
-    decoding_strategy.change(
-        fn=lambda selection: gr.Slider(
-            visible=(
-                selection
-                in [
-                    "contrastive_sampling",
-                    "beam_sampling",
-                    "Top P Sampling",
-                    "sampling_top_k",
-                ]
-            )
-        ),
-        inputs=decoding_strategy,
-        outputs=repetition_penalty,
     )
     decoding_strategy.change(
         fn=lambda selection: gr.Slider(visible=(selection in ["Top P Sampling"])),
