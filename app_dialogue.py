@@ -96,6 +96,12 @@ EXAMPLES = [
             "files": [f"{examples_path}/example_images/paper_with_text.png"],
         }
     ],
+    [
+        {
+            "text": "Can this happen in real life?",
+            "files": [f"{examples_path}/example_images/elephant_spider_web.webp"],
+        }
+    ],
 ]
 
 API_TOKEN = os.getenv("HF_AUTH_TOKEN")
