@@ -108,6 +108,12 @@ EXAMPLES = [
             "files": [f"{examples_path}/example_images/running_girl_meme.webp"],
         }
     ],
+    [
+        {
+            "text": "Give an art-critic description of this well known painting",
+            "files": [f"{examples_path}/example_images/Van-Gogh-Starry-Night.jpg"],
+        }
+    ],
 ]
 
 API_TOKEN = os.getenv("HF_AUTH_TOKEN")
