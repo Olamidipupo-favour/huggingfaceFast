@@ -102,6 +102,12 @@ EXAMPLES = [
             "files": [f"{examples_path}/example_images/elephant_spider_web.webp"],
         }
     ],
+    [
+        {
+            "text": "Can you explain this meme?",
+            "files": [f"{examples_path}/example_images/running-girl-meme.jpeg"],
+        }
+    ],
 ]
 
 API_TOKEN = os.getenv("HF_AUTH_TOKEN")
