@@ -105,7 +105,7 @@ EXAMPLES = [
     [
         {
             "text": "Can you explain this meme?",
-            "files": [f"{examples_path}/example_images/running-girl-meme.jpeg"],
+            "files": [f"{examples_path}/example_images/running_girl_meme.webp"],
         }
     ],
 ]
