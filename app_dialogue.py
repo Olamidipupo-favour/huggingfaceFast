@@ -60,19 +60,19 @@ examples_path = os.path.dirname(__file__)
 EXAMPLES = [
     [
         {
-            "text": "Describe the image",
+            "text": "What's in the image?",
             "files": [f"{examples_path}/example_images/plant_bulb.webp"],
         }
     ],
     [
         {
-            "text": "Describe the image",
+            "text": "What's funny about this image?",
             "files": [f"{examples_path}/example_images/pope_doudoune.webp"],
         }
     ],
     [
         {
-            "text": "Describe the image",
+            "text": "Why is this image cute",
             "files": [
                 f"{examples_path}/example_images/kittens-cats-pet-cute-preview.jpg"
             ],
@@ -86,7 +86,7 @@ EXAMPLES = [
     ],
     [
         {
-            "text": "Describe the image",
+            "text": "What's unusual about this image?",
             "files": [f"{examples_path}/example_images/dragons_playing.png"],
         }
     ],
