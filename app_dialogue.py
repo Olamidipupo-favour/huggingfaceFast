@@ -492,6 +492,7 @@ with gr.Blocks(
         examples=EXAMPLES,
         title="Idefics2 Playground",
         multimodal=True,
+        cache_examples=False,
         additional_inputs=[
             model_selector,
             decoding_strategy,
