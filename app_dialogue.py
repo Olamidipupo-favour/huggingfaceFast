@@ -416,7 +416,7 @@ top_p = gr.Slider(
 
 
 chatbot = gr.Chatbot(
-    label="Idefics2",
+    label="Idefics2-Chatty",
     avatar_images=[None, BOT_AVATAR],
     height=450,
 )
@@ -438,6 +438,11 @@ with gr.Blocks(
     fill_height=True,
     css=""".gradio-container .avatar-container {height: 40px width: 40px !important;}""",
 ) as demo:
+
+    gr.Markdown("# 🐶 Idefics2-Chatty Playground 🐶")
+    gr.Markdown("In this demo you'll be able to chat with [Idefics2-8B-chatty](https://huggingface.co/HuggingFaceM4/idefics2-8b-chatty), a variant of [Idefics2-8B](https://huggingface.co/HuggingFaceM4/idefics2-8b-chatty) further fine-tuned on chat datasets")
+    gr.Markdown("If you want to learn more about Idefics2 and its variants, you can check our [blog post](https://huggingface.co/blog/idefics2).")
+    
     # model selector should be set to `visbile=False` ultimately
     with gr.Row(elem_id="model_selector_row"):
         model_selector = gr.Dropdown(
@@ -447,9 +452,9 @@ with gr.Blocks(
             show_label=False,
             container=False,
             label="Model",
-            visible=True,
+            visible=False,
         )
-
+    
     decoding_strategy.change(
         fn=lambda selection: gr.Slider(
             visible=(
@@ -490,7 +495,6 @@ with gr.Blocks(
         fn=model_inference,
         chatbot=chatbot,
         examples=EXAMPLES,
-        title="Idefics2 Playground",
         multimodal=True,
         cache_examples=False,
         additional_inputs=[
