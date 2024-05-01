@@ -165,7 +165,6 @@ EXAMPLES = [
 
 API_TOKEN = os.getenv("HF_AUTH_TOKEN")
 HF_WRITE_TOKEN = os.getenv("HF_WRITE_TOKEN")
-# IDEFICS_LOGO = "https://huggingface.co/spaces/HuggingFaceM4/idefics_playground/resolve/main/IDEFICS_logo.png"
 BOT_AVATAR = "IDEFICS_logo.png"
 
 
@@ -493,17 +492,6 @@ chatbot = gr.Chatbot(
 )
 
 # Using Flagging for saving dope and problematic examples
-# Dope examples flagging
-
-
-# gr.Markdown("""## How to use?
-
-#     There are two ways to provide image inputs:
-#     - Using the image box on the left panel
-#     - Using the inline syntax: `text<fake_token_around_image><image:URL_IMAGE><fake_token_around_image>text`
-
-#     The second syntax allows inputting an arbitrary number of images.""")
-
 image_flag = gr.Image(visible=False)
 with gr.Blocks(
     fill_height=True,
