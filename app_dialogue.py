@@ -143,6 +143,24 @@ EXAMPLES = [
             "files": [f"{examples_path}/example_images/barbie.jpeg", f"{examples_path}/example_images/oppenheimer.jpeg"],
         }
     ],
+    [
+        {
+            "text": "What is formed by the deposition of either the weathered remains of other rocks?",
+            "files": [f"{examples_path}/example_images/ai2d_example.jpeg"],
+        }
+    ],
+    [
+        {
+            "text": "Chase wants to buy 4 kilograms of oval beads and 5 kilograms of star-shaped beads. How much will he spend?",
+            "files": [f"{examples_path}/example_images/mmmu_example.jpeg"],
+        }
+    ],
+    [
+        {
+            "text": "What happens to fish if pelicans increase?",
+            "files": [f"{examples_path}/example_images/ai2d_example_2.jpeg"],
+        }
+    ],
 ]
 
 API_TOKEN = os.getenv("HF_AUTH_TOKEN")
