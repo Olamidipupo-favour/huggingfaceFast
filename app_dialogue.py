@@ -495,13 +495,13 @@ chatbot = gr.Chatbot(
 image_flag = gr.Image(visible=False)
 with gr.Blocks(
     fill_height=True,
-    css=""".gradio-container .avatar-container {height: 40px width: 40px !important;}""",
+    css=""".gradio-container .avatar-container {height: 40px width: 40px !important;} #duplicate-button {margin: auto; color: white; background: #f1a139; border-radius: 100vh;}""",
 ) as demo:
 
-    gr.Markdown("# 🐶 Idefics2-Chatty Playground 🐶")
-    gr.Markdown("In this demo you'll be able to chat with [Idefics2-8B-chatty](https://huggingface.co/HuggingFaceM4/idefics2-8b-chatty), a variant of [Idefics2-8B](https://huggingface.co/HuggingFaceM4/idefics2-8b-chatty) further fine-tuned on chat datasets")
+    gr.Markdown("# 🐶 Hugging Face Idefics2 8B Chatty")
+    gr.Markdown("In this demo you'll be able to chat with [Idefics2-8B-chatty](https://huggingface.co/HuggingFaceM4/idefics2-8b-chatty), a variant of [Idefics2-8B](https://huggingface.co/HuggingFaceM4/idefics2-8b-chatty) further fine-tuned on chat datasets.")
     gr.Markdown("If you want to learn more about Idefics2 and its variants, you can check our [blog post](https://huggingface.co/blog/idefics2).")
-
+    gr.DuplicateButton(value="Duplicate Space for private use", elem_id="duplicate-button")
     # model selector should be set to `visbile=False` ultimately
     with gr.Row(elem_id="model_selector_row"):
         model_selector = gr.Dropdown(
