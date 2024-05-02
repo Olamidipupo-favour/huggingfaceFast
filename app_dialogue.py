@@ -361,79 +361,6 @@ FEATURES = datasets.Features(
         }
     )
 
-def flag_dope(
-    model_selector,
-    chat_history,
-    decoding_strategy,
-    temperature,
-    max_new_tokens,
-    repetition_penalty,
-    top_p,
-):
-    images = []
-    conversation = []
-    for ex in chat_history:
-        if isinstance(ex[0], dict):
-            images.append(img_to_bytes(ex[0]["file"]["path"]))
-        else:
-
-            conversation.append({"User": ex[0], "Assistant": ex[1]})
-
-    data = {
-        "model_selector": [model_selector],
-        "images": [images],
-        "conversation": [conversation],
-        "decoding_strategy": [decoding_strategy],
-        "temperature": [temperature],
-        "max_new_tokens": [max_new_tokens],
-        "repetition_penalty": [repetition_penalty],
-        "top_p": [top_p],
-    }
-    try:
-        ds = datasets.load_dataset("HuggingFaceM4/dope-dataset-red-teaming", split="train", token=HF_WRITE_TOKEN)
-        new_data = datasets.Dataset.from_dict(data, features=FEATURES)
-        hf_dataset = datasets.concatenate_datasets([ds,new_data])
-    except Exception:
-        hf_dataset = datasets.Dataset.from_dict(data, features=FEATURES)
-    hf_dataset.push_to_hub( "HuggingFaceM4/dope-dataset-red-teaming", split="train", token=HF_WRITE_TOKEN, private=True)
-
-
-def flag_problematic(
-    model_selector,
-    chat_history,
-    decoding_strategy,
-    temperature,
-    max_new_tokens,
-    repetition_penalty,
-    top_p,
-):
-    images = []
-    conversation = []
-    for ex in chat_history:
-        if isinstance(ex[0], dict):
-            images.append(img_to_bytes(ex[0]["file"]["path"]))
-        else:
-
-            conversation.append({"User": ex[0], "Assistant": ex[1]})
-
-    data = {
-        "model_selector": [model_selector],
-        "images": [images],
-        "conversation": [conversation],
-        "decoding_strategy": [decoding_strategy],
-        "temperature": [temperature],
-        "max_new_tokens": [max_new_tokens],
-        "repetition_penalty": [repetition_penalty],
-        "top_p": [top_p],
-    }
-    try:
-        ds = datasets.load_dataset("HuggingFaceM4/problematic-dataset-red-teaming", split="train", token=HF_WRITE_TOKEN)
-        new_data = datasets.Dataset.from_dict(data, features=FEATURES)
-        hf_dataset = datasets.concatenate_datasets([ds,new_data])
-    except Exception:
-        hf_dataset = datasets.Dataset.from_dict(data, features=FEATURES)
-    hf_dataset.push_to_hub( "HuggingFaceM4/problematic-dataset-red-teaming", split="train", token=HF_WRITE_TOKEN, private=True)
-
 
 # Hyper-parameters for generation
 max_new_tokens = gr.Slider(
@@ -491,8 +418,6 @@ chatbot = gr.Chatbot(
     height=450,
 )
 
-# Using Flagging for saving dope and problematic examples
-image_flag = gr.Image(visible=False)
 with gr.Blocks(
     fill_height=True,
     css=""".gradio-container .avatar-container {height: 40px width: 40px !important;} #duplicate-button {margin: auto; color: white; background: #f1a139; border-radius: 100vh;}""",
@@ -549,40 +474,6 @@ with gr.Blocks(
             repetition_penalty,
             top_p,
         ],
-    )
-    with gr.Group():
-        with gr.Row():
-            with gr.Column(scale=1, min_width=50):
-                dope_bttn = gr.Button("Dope🔥")
-            with gr.Column(scale=1, min_width=50):
-                problematic_bttn = gr.Button("Problematic😬")
-    dope_bttn.click(
-        fn=flag_dope,
-        inputs=[
-            model_selector,
-            chatbot,
-            decoding_strategy,
-            temperature,
-            max_new_tokens,
-            repetition_penalty,
-            top_p,
-        ],
-        outputs=None,
-        preprocess=False,
-    )
-    problematic_bttn.click(
-        fn=flag_problematic,
-        inputs=[
-            model_selector,
-            chatbot,
-            decoding_strategy,
-            temperature,
-            max_new_tokens,
-            repetition_penalty,
-            top_p,
-        ],
-        outputs=None,
-        preprocess=False,
     )
 
 demo.launch()
