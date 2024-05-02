@@ -65,14 +65,68 @@ examples_path = os.path.dirname(__file__)
 EXAMPLES = [
     [
         {
+            "text": "For 2024, the interest expense is twice what it was in 2014, and the long-term debt is 10% higher than its 2015 level. Can you calculate the combined total of the interest and long-term debt for 2024?",
+            "files": [f"{examples_path}/example_images/mmmu_example_2.png"],
+        }
+    ],
+    [
+        {
             "text": "What's in the image?",
             "files": [f"{examples_path}/example_images/plant_bulb.webp"],
         }
     ],
     [
         {
-            "text": "What's funny about this image?",
-            "files": [f"{examples_path}/example_images/pope_doudoune.webp"],
+            "text": "Describe the image",
+            "files": [f"{examples_path}/example_images/baguettes_guarding_paris.png"],
+        }
+    ],
+    [
+        {
+            "text": "Read what's written on the paper",
+            "files": [f"{examples_path}/example_images/paper_with_text.png"],
+        }
+    ],
+    [
+        {
+            "text": "The respective main characters of these two movies meet in real life. Imagine their discussion. It should be sassy, and the beginning of a mysterious adventure.",
+            "files": [f"{examples_path}/example_images/barbie.jpeg", f"{examples_path}/example_images/oppenheimer.jpeg"],
+        }
+    ],
+    [
+        {
+            "text": "Can you explain this meme?",
+            "files": [f"{examples_path}/example_images/running_girl_meme.webp"],
+        }
+    ],
+    [
+        {
+            "text": "What happens to fish if pelicans increase?",
+            "files": [f"{examples_path}/example_images/ai2d_example_2.jpeg"],
+        }
+    ],
+    [
+        {
+            "text": "Give an art-critic description of this well known painting",
+            "files": [f"{examples_path}/example_images/Van-Gogh-Starry-Night.jpg"],
+        }
+    ],
+    [
+        {
+            "text": "Chase wants to buy 4 kilograms of oval beads and 5 kilograms of star-shaped beads. How much will he spend?",
+            "files": [f"{examples_path}/example_images/mmmu_example.jpeg"],
+        }
+    ],
+    [
+        {
+            "text": "Write an online ad for that product.",
+            "files": [f"{examples_path}/example_images/shampoo.jpg"],
+        }
+    ],
+    [
+        {
+            "text": "Describe this image in detail and explain why it is disturbing.",
+            "files": [f"{examples_path}/example_images/cat_cloud.jpeg"],
         }
     ],
     [
@@ -85,20 +139,14 @@ EXAMPLES = [
     ],
     [
         {
-            "text": "Describe the image",
-            "files": [f"{examples_path}/example_images/baguettes_guarding_paris.png"],
+            "text": "What is formed by the deposition of either the weathered remains of other rocks?",
+            "files": [f"{examples_path}/example_images/ai2d_example.jpeg"],
         }
-    ],
+    ],    
     [
         {
-            "text": "What's unusual about this image?",
-            "files": [f"{examples_path}/example_images/dragons_playing.png"],
-        }
-    ],
-    [
-        {
-            "text": "Read what's written on the paper",
-            "files": [f"{examples_path}/example_images/paper_with_text.png"],
+            "text": "What's funny about this image?",
+            "files": [f"{examples_path}/example_images/pope_doudoune.webp"],
         }
     ],
     [
@@ -109,56 +157,14 @@ EXAMPLES = [
     ],
     [
         {
-            "text": "Can you explain this meme?",
-            "files": [f"{examples_path}/example_images/running_girl_meme.webp"],
-        }
-    ],
-    [
-        {
-            "text": "Give an art-critic description of this well known painting",
-            "files": [f"{examples_path}/example_images/Van-Gogh-Starry-Night.jpg"],
-        }
-    ],
-    [
-        {
-            "text": "Describe this image in detail and explain why it is disturbing.",
-            "files": [f"{examples_path}/example_images/cat_cloud.jpeg"],
+            "text": "What's unusual about this image?",
+            "files": [f"{examples_path}/example_images/dragons_playing.png"],
         }
     ],
     [
         {
             "text": "Why is that image comical?",
             "files": [f"{examples_path}/example_images/eye_glasses.jpeg"],
-        }
-    ],
-    [
-        {
-            "text": "Write an online add for that product.",
-            "files": [f"{examples_path}/example_images/shampoo.jpg"],
-        }
-    ],
-    [
-        {
-            "text": "The respective main characters of these two movies meet in real life. Imagine their discussion. It should be sassy, and the beginning of a mysterious adventure.",
-            "files": [f"{examples_path}/example_images/barbie.jpeg", f"{examples_path}/example_images/oppenheimer.jpeg"],
-        }
-    ],
-    [
-        {
-            "text": "What is formed by the deposition of either the weathered remains of other rocks?",
-            "files": [f"{examples_path}/example_images/ai2d_example.jpeg"],
-        }
-    ],
-    [
-        {
-            "text": "Chase wants to buy 4 kilograms of oval beads and 5 kilograms of star-shaped beads. How much will he spend?",
-            "files": [f"{examples_path}/example_images/mmmu_example.jpeg"],
-        }
-    ],
-    [
-        {
-            "text": "What happens to fish if pelicans increase?",
-            "files": [f"{examples_path}/example_images/ai2d_example_2.jpeg"],
         }
     ],
 ]
