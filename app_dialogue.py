@@ -33,12 +33,10 @@ MODELS = {
         torch_dtype=torch.bfloat16,
         _attn_implementation="flash_attention_2",
         trust_remote_code=True,
-        token=os.environ["HF_AUTH_TOKEN"],
     ).to(DEVICE),
 }
 PROCESSOR = AutoProcessor.from_pretrained(
     "HuggingFaceM4/idefics2-8b",
-    token=os.environ["HF_AUTH_TOKEN"],
 )
 
 SYSTEM_PROMPT = [
@@ -169,8 +167,6 @@ EXAMPLES = [
     ],
 ]
 
-API_TOKEN = os.getenv("HF_AUTH_TOKEN")
-HF_WRITE_TOKEN = os.getenv("HF_WRITE_TOKEN")
 BOT_AVATAR = "IDEFICS_logo.png"
 
 
