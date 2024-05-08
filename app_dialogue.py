@@ -421,7 +421,7 @@ chatbot = gr.Chatbot(
 
 with gr.Blocks(
     fill_height=True,
-    css=""".gradio-container .avatar-container {height: 40px width: 40px !important;} #duplicate-button {margin: auto; color: white; background: #f1a139; border-radius: 100vh;}""",
+    css=""".gradio-container .avatar-container {height: 40px width: 40px !important;} #duplicate-button {margin: auto; color: white; background: #f1a139; border-radius: 100vh; margin-top: 2px; margin-bottom: 2px;}""",
 ) as demo:
 
     gr.Markdown("# 🐶 Hugging Face Idefics2 8B Chatty")
