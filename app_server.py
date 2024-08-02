@@ -20,7 +20,7 @@ subprocess.run(
 
 app = FastAPI()
 
-DEVICE = torch.device("cuda")
+DEVICE = torch.device("cpu")
 MODELS = {
     "idefics2-8b-chatty": Idefics2ForConditionalGeneration.from_pretrained(
         "HuggingFaceM4/idefics2-8b-chatty",
