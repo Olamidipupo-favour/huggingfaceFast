@@ -1,24 +1,25 @@
 import os
 import subprocess
+import copy
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import JSONResponse
-from typing import List, Union
+from typing import List
 from PIL import Image
 import io
 import torch
 from threading import Thread
 import time
-from transformers import Idefics2ForConditionalGeneration
-from transformers import AutoProcessor, TextIteratorStreamer
+from transformers import Idefics2ForConditionalGeneration, AutoProcessor, TextIteratorStreamer
+import psutil
+import gc
 
 app = FastAPI()
 
-DEVICE = torch.device("cpu")
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 MODELS = {
     "idefics2-8b-chatty": Idefics2ForConditionalGeneration.from_pretrained(
         "HuggingFaceM4/idefics2-8b-chatty",
         torch_dtype=torch.bfloat16,
- 
     ).to(DEVICE),
 }
 PROCESSOR = AutoProcessor.from_pretrained("HuggingFaceM4/idefics2-8b")
@@ -44,9 +45,7 @@ SYSTEM_PROMPT = [
     }
 ]
 
-def format_user_prompt_with_im_history_and_system_conditioning(
-    user_prompt, chat_history
-):
+def format_user_prompt_with_im_history_and_system_conditioning(user_prompt, chat_history):
     resulting_messages = copy.deepcopy(SYSTEM_PROMPT)
     resulting_images = []
 
@@ -77,7 +76,7 @@ def format_user_prompt_with_im_history_and_system_conditioning(
                 "content": [{"type": "image"}] * len(user_prompt["files"]) + [{"type": "text", "text": user_prompt["text"]}],
             }
         )
-        resulting_images.extend([Image.open(path) for path in user_prompt["files"]])
+        resulting_images.extend([Image.open(io.BytesIO(path)) for path in user_prompt["files"]])
 
     return resulting_messages, resulting_images
 
@@ -109,7 +108,10 @@ def model_inference(user_prompt, chat_history, model_selector, decoding_strategy
     inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
     generation_args.update(inputs)
 
-    thread = Thread(target=MODELS[model_selector].generate, kwargs=generation_args)
+    def generate():
+        MODELS[model_selector].generate(**generation_args)
+
+    thread = Thread(target=generate)
     thread.start()
 
     acc_text = ""
@@ -124,10 +126,19 @@ def model_inference(user_prompt, chat_history, model_selector, decoding_strategy
 async def predict(text: str = Form(...), files: List[UploadFile] = File(None)):
     chat_history = []
     user_prompt = {"text": text, "files": [await file.read() for file in files] if files else []}
-    response = model_inference(user_prompt, chat_history, "idefics2-8b-chatty", "Greedy", 0.4, 512, 1.1, 0.8)
-    result = ""
-    for r in response:
-        result += r
+    
+    try:
+        response = model_inference(user_prompt, chat_history, "idefics2-8b-chatty", "Greedy", 0.4, 512, 1.1, 0.8)
+        result = ""
+        for r in response:
+            result += r
+    except Exception as e:
+        result = str(e)
+    
+    # Clear memory
+    torch.cuda.empty_cache()
+    gc.collect()
+    
     return JSONResponse(content={"response": result})
 
 if __name__ == '__main__':
