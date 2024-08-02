@@ -40,7 +40,7 @@ PROCESSOR = AutoProcessor.from_pretrained(
 
 SYSTEM_PROMPT = [
     {
-        "role": "system",
+        "role": "system",.
         "content": [
             {
                 "type": "text",

@@ -25,7 +25,7 @@ MODELS = {
     "idefics2-8b-chatty": Idefics2ForConditionalGeneration.from_pretrained(
         "HuggingFaceM4/idefics2-8b-chatty",
         torch_dtype=torch.bfloat16,
-        _attn_implementation="flash_attention_2",
+ 
     ).to(DEVICE),
 }
 PROCESSOR = AutoProcessor.from_pretrained("HuggingFaceM4/idefics2-8b")
