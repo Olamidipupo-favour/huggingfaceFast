@@ -11,13 +11,6 @@ import time
 from transformers import Idefics2ForConditionalGeneration
 from transformers import AutoProcessor, TextIteratorStreamer
 
-# Install flash attention
-subprocess.run(
-    "pip install flash-attn --no-build-isolation",
-    env={"FLASH_ATTENTION_SKIP_CUDA_BUILD": "TRUE"},
-    shell=True,
-)
-
 app = FastAPI()
 
 DEVICE = torch.device("cpu")
