@@ -476,5 +476,5 @@ with gr.Blocks(
             top_p,
         ],
     )
-
-demo.launch()
+if(__name__=='__main__'):
+    demo.launch()
